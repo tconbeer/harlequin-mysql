@@ -15,7 +15,7 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Check out harlequin-postgres main branch
+      - name: Check out the main branch
         uses: actions/checkout@v4
         with:
           ref: main
