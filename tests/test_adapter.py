@@ -1,10 +1,20 @@
 import sys
+from typing import Generator
 
 import pytest
-from harlequin.adapter import HarlequinAdapter, HarlequinConnection, HarlequinCursor
+from harlequin import (
+    HarlequinAdapter,
+    HarlequinCompletion,
+    HarlequinConnection,
+    HarlequinCursor,
+)
 from harlequin.catalog import Catalog, CatalogItem
 from harlequin.exception import HarlequinConnectionError, HarlequinQueryError
-from harlequin_myadapter.adapter import MyAdapter, MyConnection
+from harlequin_mysql.adapter import (
+    HarlequinMySQLAdapter,
+    HarlequinMySQLConnection,
+)
+from mysql.connector import connect
 from textual_fastdatatable.backend import create_backend
 
 if sys.version_info < (3, 10):
@@ -14,46 +24,83 @@ else:
 
 
 def test_plugin_discovery() -> None:
-    PLUGIN_NAME = "my-adapter"
+    PLUGIN_NAME = "mysql"
     eps = entry_points(group="harlequin.adapter")
     assert eps[PLUGIN_NAME]
-    adapter_cls = eps[PLUGIN_NAME].load()
+    adapter_cls = eps[PLUGIN_NAME].load()  # type: ignore
     assert issubclass(adapter_cls, HarlequinAdapter)
-    assert adapter_cls == MyAdapter
+    assert adapter_cls == HarlequinMySQLAdapter
 
 
 def test_connect() -> None:
-    conn = MyAdapter(conn_str=tuple()).connect()
+    conn = HarlequinMySQLAdapter(
+        conn_str=tuple(), user="root", password="example"
+    ).connect()
     assert isinstance(conn, HarlequinConnection)
 
 
 def test_init_extra_kwargs() -> None:
-    assert MyAdapter(conn_str=tuple(), foo=1, bar="baz").connect()
+    assert HarlequinMySQLAdapter(
+        conn_str=tuple(), user="root", password="example", foo=1, bar="baz"
+    ).connect()
 
 
 def test_connect_raises_connection_error() -> None:
     with pytest.raises(HarlequinConnectionError):
-        _ = MyAdapter(conn_str=("foo",)).connect()
+        _ = HarlequinMySQLAdapter(conn_str=("foo",)).connect()
 
 
 @pytest.fixture
-def connection() -> MyConnection:
-    return MyAdapter(conn_str=tuple()).connect()
+def connection() -> Generator[HarlequinMySQLConnection, None, None]:
+    mysqlconn = connect(
+        host="localhost",
+        user="root",
+        password="example",
+        database="mysql",
+        autocommit=True,
+    )
+    cur = mysqlconn.cursor()
+    cur.execute("drop database if exists test;")
+    cur.execute("create database test;")
+    cur.close()
+    conn = HarlequinMySQLAdapter(
+        conn_str=tuple(),
+        host="localhost",
+        user="root",
+        password="example",
+        database="test",
+    ).connect()
+    yield conn
+    cur = mysqlconn.cursor()
+    cur.execute("drop database if exists test;")
+    cur.close()
 
 
-def test_get_catalog(connection: MyConnection) -> None:
+def test_get_catalog(connection: HarlequinMySQLConnection) -> None:
     catalog = connection.get_catalog()
     assert isinstance(catalog, Catalog)
     assert catalog.items
     assert isinstance(catalog.items[0], CatalogItem)
+    assert any(
+        item.label == "test" and item.type_label == "db" for item in catalog.items
+    )
 
 
-def test_execute_ddl(connection: MyConnection) -> None:
+def test_get_completions(connection: HarlequinMySQLConnection) -> None:
+    completions = connection.get_completions()
+    assert completions
+    assert isinstance(completions[0], HarlequinCompletion)
+    expected = ["action", "var_pop"]
+    filtered = list(filter(lambda x: x.label in expected, completions))
+    assert len(filtered) == len(expected)
+
+
+def test_execute_ddl(connection: HarlequinMySQLConnection) -> None:
     cur = connection.execute("create table foo (a int)")
     assert cur is None
 
 
-def test_execute_select(connection: MyConnection) -> None:
+def test_execute_select(connection: HarlequinMySQLConnection) -> None:
     cur = connection.execute("select 1 as a")
     assert isinstance(cur, HarlequinCursor)
     assert cur.columns() == [("a", "##")]
@@ -63,7 +110,16 @@ def test_execute_select(connection: MyConnection) -> None:
     assert backend.row_count == 1
 
 
-def test_execute_select_dupe_cols(connection: MyConnection) -> None:
+def test_execute_select_no_records(connection: HarlequinMySQLConnection) -> None:
+    cur = connection.execute("select 1 as a where false")
+    assert isinstance(cur, HarlequinCursor)
+    assert cur.columns() == [("a", "##")]
+    data = cur.fetchall()
+    backend = create_backend(data)
+    assert backend.row_count == 0
+
+
+def test_execute_select_dupe_cols(connection: HarlequinMySQLConnection) -> None:
     cur = connection.execute("select 1 as a, 2 as a, 3 as a")
     assert isinstance(cur, HarlequinCursor)
     assert len(cur.columns()) == 3
@@ -73,7 +129,7 @@ def test_execute_select_dupe_cols(connection: MyConnection) -> None:
     assert backend.row_count == 1
 
 
-def test_set_limit(connection: MyConnection) -> None:
+def test_set_limit(connection: HarlequinMySQLConnection) -> None:
     cur = connection.execute("select 1 as a union all select 2 union all select 3")
     assert isinstance(cur, HarlequinCursor)
     cur = cur.set_limit(2)
@@ -84,6 +140,6 @@ def test_set_limit(connection: MyConnection) -> None:
     assert backend.row_count == 2
 
 
-def test_execute_raises_query_error(connection: MyConnection) -> None:
+def test_execute_raises_query_error(connection: HarlequinMySQLConnection) -> None:
     with pytest.raises(HarlequinQueryError):
         _ = connection.execute("selec;")

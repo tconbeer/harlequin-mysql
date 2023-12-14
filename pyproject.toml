@@ -1,20 +1,21 @@
 [tool.poetry]
-name = "harlequin_myadapter"
+name = "harlequin-mysql"
 version = "0.1.0"
-description = "A Harlequin adapter for <my favorite database>."
+description = "A Harlequin adapter for MySQL."
 authors = ["Ted Conbeer <tconbeer@users.noreply.github.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [
-    { include = "harlequin_myadapter", from = "src" },
+    { include = "harlequin_mysql", from = "src" },
 ]
 
 [tool.poetry.plugins."harlequin.adapter"]
-my-adapter = "harlequin_myadapter:MyAdapter"
+mysql = "harlequin_mysql:HarlequinMySQLAdapter"
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0"
 harlequin = "^1.7"
+mysql-connector-python = "^8.2.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.1.6"
