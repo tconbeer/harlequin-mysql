@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixes
+
+-   Sorts relation names alphabetically and columns by ordinal position.
+
 ## [0.1.0] - 2023-12-14
 
 ### Features

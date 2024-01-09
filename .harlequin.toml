@@ -1,0 +1,10 @@
+default_profile = "azure"
+[profiles.azure]
+adapter = "mysql"
+theme = "harlequin"
+limit = 10000
+host = "harlequin-mysql-dev.mysql.database.azure.com"
+port = "3306"
+database = "dev"
+user = "harlequin"
+password = "roEj5cN9Jdyqbyqf"
