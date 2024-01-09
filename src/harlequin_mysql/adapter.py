@@ -187,6 +187,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
                 end as table_type
             from information_schema.tables
             where table_schema = '{db_name}'
+            order by table_name asc
             ;"""
         )
         results: list[tuple[str, str]] = cur.fetchall()
@@ -203,6 +204,8 @@ class HarlequinMySQLConnection(HarlequinConnection):
             where
                 table_schema = '{db_name}'
                 and table_name = '{rel_name}'
+                and extra not like '%INVISIBLE%'
+            order by ordinal_position asc
             ;"""
         )
         results: list[tuple[str, str]] = cur.fetchall()
