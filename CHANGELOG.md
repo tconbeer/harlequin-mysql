@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixes
+
+-   Sets the `pool_name` property on the MySQL connection to prevent auto-generated pool names from being too long ([#6](https://github.com/tconbeer/harlequin-mysql/issues/6) - thank you [sondeokhyeon](https://github.com/sondeokhyeon)!).
+
 ## [0.1.1] - 2024-01-09
 
 ### Fixes

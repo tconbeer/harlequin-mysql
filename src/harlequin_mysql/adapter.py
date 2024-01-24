@@ -94,7 +94,11 @@ class HarlequinMySQLConnection(HarlequinConnection):
         self.init_message = init_message
         try:
             self.pool: MySQLConnectionPool = MySQLConnectionPool(
-                pool_size=5, pool_reset_session=False, **options, autocommit=True
+                pool_name="harlequin",
+                pool_size=5,
+                pool_reset_session=False,
+                **options,
+                autocommit=True,
             )
         except Exception as e:
             raise HarlequinConnectionError(
