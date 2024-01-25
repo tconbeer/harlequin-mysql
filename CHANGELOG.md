@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2024-01-25
+
 ### Fixes
 
 -   Sets the `pool_name` property on the MySQL connection to prevent auto-generated pool names from being too long ([#6](https://github.com/tconbeer/harlequin-mysql/issues/6) - thank you [sondeokhyeon](https://github.com/sondeokhyeon)!).
@@ -20,7 +22,9 @@ All notable changes to this project will be documented in this file.
 
 -   Adds a basic MySQL adapter with most common connection options.
 
-[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.1...HEAD
+[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.2...HEAD
+
+[0.1.2]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.1...0.1.2
 
 [0.1.1]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.0...0.1.1
 
