@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ## [0.1.3] - 2024-01-29
 
+### Fixes
+
+-   Fixes a typo in the help text for the `--user` option (thank you [@alexmalins](https://github.com/alexmalins)!).
+
 ## [0.1.2] - 2024-01-25
 
 ### Fixes
