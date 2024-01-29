@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.3] - 2024-01-29
+
 ## [0.1.2] - 2024-01-25
 
 ### Fixes
@@ -22,7 +24,9 @@ All notable changes to this project will be documented in this file.
 
 -   Adds a basic MySQL adapter with most common connection options.
 
-[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.2...HEAD
+[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.3...HEAD
+
+[0.1.3]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.2...0.1.3
 
 [0.1.2]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.1...0.1.2
 
