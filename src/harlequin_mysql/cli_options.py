@@ -51,14 +51,14 @@ database = TextOption(
 
 user = TextOption(
     name="user",
-    description=("MySQL user name to connect as."),
+    description=("The user name used to authenticate with the MySQL server."),
     short_decls=["-u", "--username", "-U"],
 )
 
 
 password = TextOption(
     name="password",
-    description=("Password to be used if the server demands password authentication."),
+    description=("The password to authenticate the user with the MySQL server."),
     short_decls=["--password1"],
 )
 
