@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2024-04-11
+
 ### Features
 
 -   Adds a `pool-size` CLI option to set the size of the MySQL connection pool. Defaults to 5.
@@ -37,7 +39,9 @@ All notable changes to this project will be documented in this file.
 
 -   Adds a basic MySQL adapter with most common connection options.
 
-[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.3...HEAD
+[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.2.0...HEAD
+
+[0.2.0]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.3...0.2.0
 
 [0.1.3]: https://github.com/tconbeer/harlequin-mysql/compare/0.1.2...0.1.3
 
