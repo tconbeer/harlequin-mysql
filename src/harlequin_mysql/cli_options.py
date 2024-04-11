@@ -111,6 +111,18 @@ ssl_key = PathOption(
     short_decls=["--sslkey"],
 )
 
+pool_size = TextOption(
+    name="pool-size",
+    description=(
+        "The number of concurrent connections maintained by Harlequin. MySQL "
+        "only allows one cursor per connection, so this sets the number of queries "
+        "that can be executed at once in Harlequin."
+    ),
+    short_decls=["-n"],
+    default="5",
+    validator=_int_validator,
+)
+
 
 MYSQLADAPTER_OPTIONS = [
     host,
@@ -126,4 +138,5 @@ MYSQLADAPTER_OPTIONS = [
     ssl_cert,
     ssl_disabled,
     ssl_key,
+    pool_size,
 ]

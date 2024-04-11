@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Sequence
 
 from harlequin import (
@@ -16,16 +17,27 @@ from harlequin.exception import (
 )
 from mysql.connector import FieldType
 from mysql.connector.cursor import MySQLCursor
-from mysql.connector.pooling import MySQLConnectionPool
+from mysql.connector.errors import InternalError, PoolError
+from mysql.connector.pooling import (
+    MySQLConnectionPool,
+    PooledMySQLConnection,
+)
 from textual_fastdatatable.backend import AutoBackendType
 
 from harlequin_mysql.cli_options import MYSQLADAPTER_OPTIONS
 from harlequin_mysql.completions import load_completions
 
+USE_DATABASE_PROG = re.compile(
+    r"\s*use\s+([^\\/?%*:|\"<>.]{1,64})", flags=re.IGNORECASE
+)
+
 
 class HarlequinMySQLCursor(HarlequinCursor):
-    def __init__(self, cur: MySQLCursor, *_: Any, **__: Any) -> None:
+    def __init__(
+        self, cur: MySQLCursor, conn: PooledMySQLConnection, *_: Any, **__: Any
+    ) -> None:
         self.cur = cur
+        self.conn = conn
         self._limit: int | None = None
 
     def columns(self) -> list[tuple[str, str]]:
@@ -39,14 +51,19 @@ class HarlequinMySQLCursor(HarlequinCursor):
     def fetchall(self) -> AutoBackendType:
         try:
             if self._limit is None:
-                return self.cur.fetchall()
+                results = self.cur.fetchall()
             else:
-                return self.cur.fetchmany(self._limit)
+                results = self.cur.fetchmany(self._limit)
+            return results
         except Exception as e:
             raise HarlequinQueryError(
                 msg=str(e),
                 title="Harlequin encountered an error while executing your query.",
             ) from e
+        finally:
+            self.conn.consume_results()
+            self.cur.close()
+            self.conn.close()
 
     @staticmethod
     def _get_short_type(type_id: int) -> str:
@@ -93,35 +110,84 @@ class HarlequinMySQLConnection(HarlequinConnection):
     ) -> None:
         self.init_message = init_message
         try:
-            self.pool: MySQLConnectionPool = MySQLConnectionPool(
+            self._pool: MySQLConnectionPool = MySQLConnectionPool(
                 pool_name="harlequin",
-                pool_size=5,
                 pool_reset_session=False,
-                **options,
                 autocommit=True,
+                **options,
             )
         except Exception as e:
             raise HarlequinConnectionError(
                 msg=str(e), title="Harlequin could not connect to your database."
             ) from e
 
-    def execute(self, query: str) -> HarlequinCursor | None:
+    def safe_get_mysql_cursor(
+        self, buffered: bool = False
+    ) -> tuple[PooledMySQLConnection | None, MySQLCursor | None]:
+        """
+        Return None if the connection pool is exhausted, to avoid getting
+        in an unrecoverable state.
+        """
         try:
-            conn = self.pool.get_connection()
-            cur = conn.cursor()
+            conn = self._pool.get_connection()
+        except (InternalError, PoolError):
+            # if we're out of connections, we can't raise a query error,
+            # or we get in a state where we have cursors without fetched
+            # results, which requires a restart of Harlequin. Instead,
+            # just return None and silently fail (there isn't a sensible
+            # way to show an error to the user without aborting processing
+            # all the other cursors).
+            return None, None
+
+        try:
+            cur: MySQLCursor = conn.cursor(buffered=buffered)
+        except InternalError:
+            # cursor has an unread result. Try to consume the results,
+            # and try again.
+            conn.consume_results()
+            cur = conn.cursor(buffered=buffered)
+
+        return conn, cur
+
+    def set_pool_config(self, **config: Any) -> None:
+        """
+        Updates the config of the MySQL connection pool.
+        """
+        self._pool.set_config(**config)
+
+    def execute(self, query: str) -> HarlequinCursor | None:
+        retval: HarlequinCursor | None = None
+
+        conn, cur = self.safe_get_mysql_cursor()
+        if conn is None or cur is None:
+            return None
+
+        try:
             cur.execute(query)
         except Exception as e:
+            cur.close()
+            conn.close()
             raise HarlequinQueryError(
                 msg=str(e),
                 title="Harlequin encountered an error while executing your query.",
             ) from e
         else:
             if cur.description is not None:
-                return HarlequinMySQLCursor(cur)
+                retval = HarlequinMySQLCursor(cur, conn=conn)
             else:
-                return None
-        finally:
-            conn.close()
+                cur.close()
+                conn.close()
+
+        # this is a hack to update all connections in the pool if the user
+        # changes the database for the active connection.
+        # it is impossible to check the database or other config
+        # of a connection with an open cursor, and we can't use a dedicated
+        # connection for user queries, since mysql only supports a single
+        # (unfetched) cursor per connection.
+        if match := USE_DATABASE_PROG.match(query):
+            new_db = match.group(1)
+            self.set_pool_config(database=new_db)
+        return retval
 
     def get_catalog(self) -> Catalog:
         databases = self._get_databases()
@@ -164,8 +230,15 @@ class HarlequinMySQLConnection(HarlequinConnection):
         return load_completions()
 
     def _get_databases(self) -> list[tuple[str]]:
-        conn = self.pool.get_connection()
-        cur = conn.cursor()
+        conn, cur = self.safe_get_mysql_cursor(buffered=True)
+        if conn is None or cur is None:
+            raise HarlequinConnectionError(
+                title="Connection pool exhausted",
+                msg=(
+                    "Connection pool exhausted. Try restarting Harlequin "
+                    "with a larger pool or running fewer queries at once."
+                ),
+            )
         cur.execute(
             """
             show databases
@@ -174,13 +247,21 @@ class HarlequinMySQLConnection(HarlequinConnection):
             )
             """
         )
-        results: list[tuple[str]] = cur.fetchall()
+        results: list[tuple[str]] = cur.fetchall()  # type: ignore
+        cur.close()
         conn.close()
         return results
 
     def _get_relations(self, db_name: str) -> list[tuple[str, str]]:
-        conn = self.pool.get_connection()
-        cur = conn.cursor()
+        conn, cur = self.safe_get_mysql_cursor(buffered=True)
+        if conn is None or cur is None:
+            raise HarlequinConnectionError(
+                title="Connection pool exhausted",
+                msg=(
+                    "Connection pool exhausted. Try restarting Harlequin "
+                    "with a larger pool or running fewer queries at once."
+                ),
+            )
         cur.execute(
             f"""
             select 
@@ -194,13 +275,21 @@ class HarlequinMySQLConnection(HarlequinConnection):
             order by table_name asc
             ;"""
         )
-        results: list[tuple[str, str]] = cur.fetchall()
+        results: list[tuple[str, str]] = cur.fetchall()  # type: ignore
+        cur.close()
         conn.close()
         return results
 
     def _get_columns(self, db_name: str, rel_name: str) -> list[tuple[str, str]]:
-        conn = self.pool.get_connection()
-        cur = conn.cursor()
+        conn, cur = self.safe_get_mysql_cursor(buffered=True)
+        if conn is None or cur is None:
+            raise HarlequinConnectionError(
+                title="Connection pool exhausted",
+                msg=(
+                    "Connection pool exhausted. Try restarting Harlequin "
+                    "with a larger pool or running fewer queries at once."
+                ),
+            )
         cur.execute(
             f"""
             select column_name, data_type
@@ -212,7 +301,8 @@ class HarlequinMySQLConnection(HarlequinConnection):
             order by ordinal_position asc
             ;"""
         )
-        results: list[tuple[str, str]] = cur.fetchall()
+        results: list[tuple[str, str]] = cur.fetchall()  # type: ignore
+        cur.close()
         conn.close()
         return results
 
@@ -266,6 +356,7 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
         ssl_cert: str | None = None,
         ssl_disabled: str | bool | None = False,
         ssl_key: str | None = None,
+        pool_size: str | int | None = 5,
         **_: Any,
     ) -> None:
         if conn_str:
@@ -289,6 +380,7 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
                 "ssl_cert": ssl_cert,
                 "ssl_disabled": ssl_disabled if ssl_disabled is not None else False,
                 "ssl_key": ssl_key,
+                "pool_size": int(pool_size) if pool_size is not None else 5,
             }
         except (ValueError, TypeError) as e:
             raise HarlequinConfigError(

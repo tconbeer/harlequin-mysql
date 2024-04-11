@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Features
+
+-   Adds a `pool-size` CLI option to set the size of the MySQL connection pool. Defaults to 5.
+
+### Bug Fixes
+
+-   Updates the connection pool config to keep all connections in sync after running a `use database` command ([#11](https://github.com/tconbeer/harlequin-mysql/issues/11) - thank you [@mlopezgva](https://github.com/mlopezgva)!).
+-   Handles several issues caused by running too many concurrent queries and not fetching results.
+
 ## [0.1.3] - 2024-01-29
 
 ### Fixes

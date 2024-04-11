@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import Generator
 
@@ -15,6 +17,8 @@ from harlequin_mysql.adapter import (
     HarlequinMySQLConnection,
 )
 from mysql.connector import connect
+from mysql.connector.cursor import MySQLCursor
+from mysql.connector.pooling import PooledMySQLConnection
 from textual_fastdatatable.backend import create_backend
 
 if sys.version_info < (3, 10):
@@ -143,3 +147,77 @@ def test_set_limit(connection: HarlequinMySQLConnection) -> None:
 def test_execute_raises_query_error(connection: HarlequinMySQLConnection) -> None:
     with pytest.raises(HarlequinQueryError):
         _ = connection.execute("selec;")
+
+
+def test_can_execute_pool_size_queries(connection: HarlequinMySQLConnection) -> None:
+    pool_size = connection._pool.pool_size
+    cursors: list[HarlequinCursor] = []
+    for _ in range(pool_size):
+        cur = connection.execute("select 1")
+        assert cur is not None
+        cursors.append(cur)
+    assert len(cursors) == pool_size
+
+
+def test_can_execute_pool_size_ddl(connection: HarlequinMySQLConnection) -> None:
+    pool_size = connection._pool.pool_size
+    cursors: list[None] = []
+    for i in range(pool_size):
+        cur = connection.execute(f"create table t_{i} as select {i}")
+        assert cur is None
+        cursors.append(cur)
+    assert len(cursors) == pool_size
+
+
+def test_execute_more_than_pool_size_queries_does_not_raise(
+    connection: HarlequinMySQLConnection,
+) -> None:
+    pool_size = connection._pool.pool_size
+    cursors: list[HarlequinCursor] = []
+    for _ in range(pool_size * 2):
+        cur = connection.execute("select 1")
+        if cur is not None:
+            cursors.append(cur)
+    assert len(cursors) == pool_size
+
+
+def test_execute_more_than_pool_size_ddl_does_not_raise(
+    connection: HarlequinMySQLConnection,
+) -> None:
+    pool_size = connection._pool.pool_size
+    number_of_ddl_queries = pool_size * 2
+    cursors: list[None] = []
+    for i in range(number_of_ddl_queries):
+        cur = connection.execute(f"create table t_{i} as select {i}")
+        assert cur is None
+        cursors.append(cur)
+    assert len(cursors) == number_of_ddl_queries
+
+
+def test_use_database_updates_pool(connection: HarlequinMySQLConnection) -> None:
+    conn, cur = connection.safe_get_mysql_cursor()
+    assert conn is not None
+    assert cur is not None
+    assert conn.database == "test"
+    cur.close()
+    conn.close()
+
+    connection.execute("use mysql")
+
+    pool_size = connection._pool.pool_size
+
+    conns: list[PooledMySQLConnection] = []
+    curs: list[MySQLCursor] = []
+    for _ in range(pool_size):
+        conn, cur = connection.safe_get_mysql_cursor()
+        assert conn is not None
+        assert cur is not None
+        assert conn.database == "mysql"
+        conns.append(conn)
+        curs.append(cur)
+
+    assert len(conns) == pool_size
+    for cur in curs:
+        cur.close()
+    for conn in conns:
+        conn.close()
