@@ -12,14 +12,15 @@ from harlequin import (
 )
 from harlequin.catalog import Catalog, CatalogItem
 from harlequin.exception import HarlequinConnectionError, HarlequinQueryError
-from harlequin_mysql.adapter import (
-    HarlequinMySQLAdapter,
-    HarlequinMySQLConnection,
-)
 from mysql.connector import connect
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.pooling import PooledMySQLConnection
 from textual_fastdatatable.backend import create_backend
+
+from harlequin_mysql.adapter import (
+    HarlequinMySQLAdapter,
+    HarlequinMySQLConnection,
+)
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
@@ -31,7 +32,7 @@ def test_plugin_discovery() -> None:
     PLUGIN_NAME = "mysql"
     eps = entry_points(group="harlequin.adapter")
     assert eps[PLUGIN_NAME]
-    adapter_cls = eps[PLUGIN_NAME].load()  # type: ignore
+    adapter_cls = eps[PLUGIN_NAME].load()
     assert issubclass(adapter_cls, HarlequinAdapter)
     assert adapter_cls == HarlequinMySQLAdapter
 
@@ -52,6 +53,24 @@ def test_init_extra_kwargs() -> None:
 def test_connect_raises_connection_error() -> None:
     with pytest.raises(HarlequinConnectionError):
         _ = HarlequinMySQLAdapter(conn_str=("foo",)).connect()
+
+
+@pytest.mark.parametrize(
+    "options,expected",
+    [
+        ({}, "127.0.0.1:3306/"),
+        ({"host": "foo.bar"}, "foo.bar:3306/"),
+        ({"host": "foo.bar", "port": "3305"}, "foo.bar:3305/"),
+        ({"unix_socket": "/foo/bar"}, "/foo/bar:3306/"),
+        ({"unix_socket": "/foo/bar", "database": "baz"}, "/foo/bar:3306/baz"),
+    ],
+)
+def test_connection_id(options: dict[str, str | int | None], expected: str) -> None:
+    adapter = HarlequinMySQLAdapter(
+        conn_str=tuple(),
+        **options,  # type: ignore[arg-type]
+    )
+    assert adapter.connection_id == expected
 
 
 @pytest.fixture
@@ -221,3 +240,9 @@ def test_use_database_updates_pool(connection: HarlequinMySQLConnection) -> None
         cur.close()
     for conn in conns:
         conn.close()
+
+
+def test_close(connection: HarlequinMySQLConnection) -> None:
+    connection.close()
+    # run again to test error handling.
+    connection.close()

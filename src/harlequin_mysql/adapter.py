@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import suppress
 from typing import Any, Sequence
 
 from harlequin import (
@@ -30,14 +31,22 @@ from harlequin_mysql.completions import load_completions
 USE_DATABASE_PROG = re.compile(
     r"\s*use\s+([^\\/?%*:|\"<>.]{1,64})", flags=re.IGNORECASE
 )
+QUERY_INTERRUPT_MSG = "1317 (70100): Query execution was interrupted"
 
 
 class HarlequinMySQLCursor(HarlequinCursor):
     def __init__(
-        self, cur: MySQLCursor, conn: PooledMySQLConnection, *_: Any, **__: Any
+        self,
+        cur: MySQLCursor,
+        conn: PooledMySQLConnection,
+        harlequin_conn: HarlequinMySQLConnection,
+        *_: Any,
+        **__: Any,
     ) -> None:
         self.cur = cur
         self.conn = conn
+        self.harlequin_conn = harlequin_conn
+        self.connection_id = conn._cnx.connection_id
         self._limit: int | None = None
 
     def columns(self) -> list[tuple[str, str]]:
@@ -56,14 +65,19 @@ class HarlequinMySQLCursor(HarlequinCursor):
                 results = self.cur.fetchmany(self._limit)
             return results
         except Exception as e:
-            raise HarlequinQueryError(
-                msg=str(e),
-                title="Harlequin encountered an error while executing your query.",
-            ) from e
+            if str(e) == QUERY_INTERRUPT_MSG:
+                return []
+            else:
+                raise HarlequinQueryError(
+                    msg=str(e),
+                    title="Harlequin encountered an error while executing your query.",
+                ) from e
         finally:
             self.conn.consume_results()
             self.cur.close()
             self.conn.close()
+            if self.connection_id:
+                self.harlequin_conn._in_use_connections.discard(self.connection_id)
 
     @staticmethod
     def _get_short_type(type_id: int) -> str:
@@ -109,6 +123,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
         options: dict[str, Any],
     ) -> None:
         self.init_message = init_message
+        self._in_use_connections: set[int] = set()
         try:
             self._pool: MySQLConnectionPool = MySQLConnectionPool(
                 pool_name="harlequin",
@@ -161,22 +176,33 @@ class HarlequinMySQLConnection(HarlequinConnection):
         conn, cur = self.safe_get_mysql_cursor()
         if conn is None or cur is None:
             return None
+        else:
+            connection_id = conn._cnx.connection_id
+            if connection_id:
+                self._in_use_connections.add(connection_id)
 
         try:
             cur.execute(query)
         except Exception as e:
             cur.close()
             conn.close()
-            raise HarlequinQueryError(
-                msg=str(e),
-                title="Harlequin encountered an error while executing your query.",
-            ) from e
+            if connection_id:
+                self._in_use_connections.discard(connection_id)
+            if str(e) == QUERY_INTERRUPT_MSG:
+                return None
+            else:
+                raise HarlequinQueryError(
+                    msg=str(e),
+                    title="Harlequin encountered an error while executing your query.",
+                ) from e
         else:
             if cur.description is not None:
-                retval = HarlequinMySQLCursor(cur, conn=conn)
+                retval = HarlequinMySQLCursor(cur, conn=conn, harlequin_conn=self)
             else:
                 cur.close()
                 conn.close()
+                if connection_id:
+                    self._in_use_connections.discard(connection_id)
 
         # this is a hack to update all connections in the pool if the user
         # changes the database for the active connection.
@@ -188,6 +214,27 @@ class HarlequinMySQLConnection(HarlequinConnection):
             new_db = match.group(1)
             self.set_pool_config(database=new_db)
         return retval
+
+    def cancel(self) -> None:
+        # get a new cursor to execute the KILL statements
+        conn, cur = self.safe_get_mysql_cursor()
+        if conn is None or cur is None:
+            return None
+
+        # loop through in-use connections and kill each of them
+        for connection_id in self._in_use_connections:
+            try:
+                cur.execute("KILL QUERY %s", (connection_id,))
+            except BaseException:
+                continue
+
+        cur.close()
+        conn.close()
+        self._in_use_connections = set()
+
+    def close(self) -> None:
+        with suppress(PoolError):
+            self._pool._remove_connections()
 
     def get_catalog(self) -> Catalog:
         databases = self._get_databases()
@@ -339,6 +386,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
 
 class HarlequinMySQLAdapter(HarlequinAdapter):
     ADAPTER_OPTIONS = MYSQLADAPTER_OPTIONS
+    IMPLEMENTS_CANCEL = True
 
     def __init__(
         self,
@@ -387,6 +435,17 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
                 msg=f"MySQL adapter received bad config value: {e}",
                 title="Harlequin could not initialize the selected adapter.",
             ) from e
+
+    @property
+    def connection_id(self) -> str | None:
+        host = self.options.get("host", "") or ""
+        sock = self.options.get("unix_socket", "") or ""
+        host = host if host or sock else "127.0.0.1"
+
+        port = self.options.get("port", 3306)
+        database = self.options.get("database", "") or ""
+
+        return f"{host}{sock}:{port}/{database}"
 
     def connect(self) -> HarlequinMySQLConnection:
         conn = HarlequinMySQLConnection(conn_str=tuple(), options=self.options)
