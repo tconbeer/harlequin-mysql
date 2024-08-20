@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 -   Implements `connection_id` for better persistence.
 -   Implements the `cancel()` protocol to cancel in-flight queries.
 -   Implements `close()`
+-   Fixes a bug where a race condition could cause a crash with an `AssertionError` ([#14](https://github.com/tconbeer/harlequin-mysql/issues/14) - thank you [@blasferna](https://github.com/blasferna)!).
 
 ## [0.2.0] - 2024-04-11
 
