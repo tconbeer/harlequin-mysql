@@ -12,14 +12,15 @@ from harlequin import (
 )
 from harlequin.catalog import Catalog, CatalogItem
 from harlequin.exception import HarlequinConnectionError, HarlequinQueryError
-from harlequin_mysql.adapter import (
-    HarlequinMySQLAdapter,
-    HarlequinMySQLConnection,
-)
 from mysql.connector import connect
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.pooling import PooledMySQLConnection
 from textual_fastdatatable.backend import create_backend
+
+from harlequin_mysql.adapter import (
+    HarlequinMySQLAdapter,
+    HarlequinMySQLConnection,
+)
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
