@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 -   Implements `connection_id` for better persistence.
-
+-   Implements the `cancel()` protocol to cancel in-flight queries.
 
 ## [0.2.0] - 2024-04-11
 

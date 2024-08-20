@@ -55,6 +55,24 @@ def test_connect_raises_connection_error() -> None:
         _ = HarlequinMySQLAdapter(conn_str=("foo",)).connect()
 
 
+@pytest.mark.parametrize(
+    "options,expected",
+    [
+        ({}, "127.0.0.1:3306/"),
+        ({"host": "foo.bar"}, "foo.bar:3306/"),
+        ({"host": "foo.bar", "port": "3305"}, "foo.bar:3305/"),
+        ({"unix_socket": "/foo/bar"}, "/foo/bar:3306/"),
+        ({"unix_socket": "/foo/bar", "database": "baz"}, "/foo/bar:3306/baz"),
+    ],
+)
+def test_connection_id(options: dict[str, str | int | None], expected: str) -> None:
+    adapter = HarlequinMySQLAdapter(
+        conn_str=tuple(),
+        **options,  # type: ignore[arg-type]
+    )
+    assert adapter.connection_id == expected
+
+
 @pytest.fixture
 def connection() -> Generator[HarlequinMySQLConnection, None, None]:
     mysqlconn = connect(
