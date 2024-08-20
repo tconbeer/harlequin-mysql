@@ -390,7 +390,14 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
 
     @property
     def connection_id(self) -> str | None:
-        return None
+        host = self.options.get("host", "")
+        sock = self.options.get("unix_socket", "")
+        host = host if host or sock else "127.0.0.1"
+
+        port = self.options.get("port", 3306)
+        database = self.options.get("database", "")
+
+        return f"{host}{sock}:{port}/{database}"
 
     def connect(self) -> HarlequinMySQLConnection:
         conn = HarlequinMySQLConnection(conn_str=tuple(), options=self.options)
