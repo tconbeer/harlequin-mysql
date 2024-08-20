@@ -240,3 +240,9 @@ def test_use_database_updates_pool(connection: HarlequinMySQLConnection) -> None
         cur.close()
     for conn in conns:
         conn.close()
+
+
+def test_close(connection: HarlequinMySQLConnection) -> None:
+    connection.close()
+    # run again to test error handling.
+    connection.close()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import suppress
 from typing import Any, Sequence
 
 from harlequin import (
@@ -230,6 +231,10 @@ class HarlequinMySQLConnection(HarlequinConnection):
         cur.close()
         conn.close()
         self._in_use_connections = set()
+
+    def close(self) -> None:
+        with suppress(PoolError):
+            self._pool._remove_connections()
 
     def get_catalog(self) -> Catalog:
         databases = self._get_databases()
