@@ -44,14 +44,18 @@ class HarlequinMySQLCursor(HarlequinCursor):
         **__: Any,
     ) -> None:
         self.cur = cur
+
+        # copy description in case the cursor is closed before columns() is called
+        assert cur.description is not None
+        self.description = cur.description.copy()
+
         self.conn = conn
         self.harlequin_conn = harlequin_conn
         self.connection_id = conn._cnx.connection_id
         self._limit: int | None = None
 
     def columns(self) -> list[tuple[str, str]]:
-        assert self.cur.description is not None
-        return [(col[0], self._get_short_type(col[1])) for col in self.cur.description]
+        return [(col[0], self._get_short_type(col[1])) for col in self.description]
 
     def set_limit(self, limit: int) -> "HarlequinMySQLCursor":
         self._limit = limit
