@@ -388,6 +388,10 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
                 title="Harlequin could not initialize the selected adapter.",
             ) from e
 
+    @property
+    def connection_id(self) -> str | None:
+        return None
+
     def connect(self) -> HarlequinMySQLConnection:
         conn = HarlequinMySQLConnection(conn_str=tuple(), options=self.options)
         return conn
