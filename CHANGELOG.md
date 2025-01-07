@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+-  Drops support for Python 3.8
+-  Adds support for Python 3.13
+-  Adds support for Harlequin 2.X
+
 ## [0.3.0] - 2024-08-20
 
 -   Implements `connection_id` for better persistence.
