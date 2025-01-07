@@ -4,9 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
--  Drops support for Python 3.8
--  Adds support for Python 3.13
--  Adds support for Harlequin 2.X
+## [1.0.0] - 2025-01-07
+
+-   Drops support for Python 3.8
+-   Adds support for Python 3.13
+-   Adds support for Harlequin 2.X
 
 ## [0.3.0] - 2024-08-20
 
@@ -50,7 +52,9 @@ All notable changes to this project will be documented in this file.
 
 -   Adds a basic MySQL adapter with most common connection options.
 
-[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.0.0...HEAD
+
+[1.0.0]: https://github.com/tconbeer/harlequin-mysql/compare/0.3.0...1.0.0
 
 [0.3.0]: https://github.com/tconbeer/harlequin-mysql/compare/0.2.0...0.3.0
 
