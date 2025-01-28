@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-01-28
+
 -   Bumps the MySQL Connector Python version to >=9.1
 -   Bumps the required Harlequin version to >= 1.25.0
 -   Adds support for the `openid_token_file` connection option introduced with MySQL Connector 9.1
@@ -58,7 +60,9 @@ All notable changes to this project will be documented in this file.
 
 -   Adds a basic MySQL adapter with most common connection options.
 
-[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.0.0...HEAD
+[Unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.1.0...HEAD
+
+[1.1.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.0.0...1.1.0
 
 [1.0.0]: https://github.com/tconbeer/harlequin-mysql/compare/0.3.0...1.0.0
 
