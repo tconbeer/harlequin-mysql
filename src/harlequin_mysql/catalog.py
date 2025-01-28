@@ -29,8 +29,8 @@ class ColumnCatalogItem(InteractiveCatalogItem["HarlequinMySQLConnection"]):
         label: str,
         type_label: str,
     ) -> "ColumnCatalogItem":
-        column_qualified_identifier = f'{parent.qualified_identifier}."{label}"'
-        column_query_name = f'"{label}"'
+        column_qualified_identifier = f"{parent.qualified_identifier}.`{label}`"
+        column_query_name = f"`{label}`"
         return cls(
             qualified_identifier=column_qualified_identifier,
             query_name=column_query_name,
@@ -75,8 +75,8 @@ class ViewCatalogItem(RelationCatalogItem):
         parent: "DatabaseCatalogItem",
         label: str,
     ) -> "ViewCatalogItem":
-        relation_query_name = f'"{parent.label}"."{label}"'
-        relation_qualified_identifier = f'{parent.qualified_identifier}."{label}"'
+        relation_query_name = f"`{parent.label}`.`{label}`"
+        relation_qualified_identifier = f"{parent.qualified_identifier}.`{label}`"
         return cls(
             qualified_identifier=relation_qualified_identifier,
             query_name=relation_query_name,
@@ -98,8 +98,8 @@ class TableCatalogItem(RelationCatalogItem):
         parent: "DatabaseCatalogItem",
         label: str,
     ) -> "TableCatalogItem":
-        relation_query_name = f'"{parent.label}"."{label}"'
-        relation_qualified_identifier = f'{parent.qualified_identifier}."{label}"'
+        relation_query_name = f"`{parent.label}`.`{label}`"
+        relation_qualified_identifier = f"{parent.qualified_identifier}.`{label}`"
         return cls(
             qualified_identifier=relation_qualified_identifier,
             query_name=relation_query_name,
@@ -121,7 +121,7 @@ class DatabaseCatalogItem(InteractiveCatalogItem["HarlequinMySQLConnection"]):
     def from_label(
         cls, label: str, connection: "HarlequinMySQLConnection"
     ) -> "DatabaseCatalogItem":
-        database_identifier = f'"{label}"'
+        database_identifier = f"`{label}`"
         return cls(
             qualified_identifier=database_identifier,
             query_name=database_identifier,

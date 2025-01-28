@@ -23,7 +23,7 @@ def execute_use_statement(
     if item.connection is None:
         return
     try:
-        item.connection.execute(f"use {item.qualified_identifier}")
+        item.connection.execute(f"use {item.label}")
     except HarlequinQueryError:
         driver.notify("Could not switch context", severity="error")
         raise
