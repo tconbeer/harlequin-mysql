@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Generator
 
 import pytest
 from harlequin import (
@@ -12,7 +11,6 @@ from harlequin import (
 )
 from harlequin.catalog import Catalog, CatalogItem
 from harlequin.exception import HarlequinConnectionError, HarlequinQueryError
-from mysql.connector import connect
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.pooling import PooledMySQLConnection
 from textual_fastdatatable.backend import create_backend
@@ -71,32 +69,6 @@ def test_connection_id(options: dict[str, str | int | None], expected: str) -> N
         **options,  # type: ignore[arg-type]
     )
     assert adapter.connection_id == expected
-
-
-@pytest.fixture
-def connection() -> Generator[HarlequinMySQLConnection, None, None]:
-    mysqlconn = connect(
-        host="localhost",
-        user="root",
-        password="example",
-        database="mysql",
-        autocommit=True,
-    )
-    cur = mysqlconn.cursor()
-    cur.execute("drop database if exists test;")
-    cur.execute("create database test;")
-    cur.close()
-    conn = HarlequinMySQLAdapter(
-        conn_str=tuple(),
-        host="localhost",
-        user="root",
-        password="example",
-        database="test",
-    ).connect()
-    yield conn
-    cur = mysqlconn.cursor()
-    cur.execute("drop database if exists test;")
-    cur.close()
 
 
 def test_get_catalog(connection: HarlequinMySQLConnection) -> None:
