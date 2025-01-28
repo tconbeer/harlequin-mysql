@@ -111,6 +111,14 @@ ssl_key = PathOption(
     short_decls=["--sslkey"],
 )
 
+openid_token_file = PathOption(
+    name="openid-token-file",
+    description="File containing the OpenID Token.",
+    exists=True,
+    dir_okay=False,
+    short_decls=["--oid"],
+)
+
 pool_size = TextOption(
     name="pool-size",
     description=(
@@ -138,5 +146,6 @@ MYSQLADAPTER_OPTIONS = [
     ssl_cert,
     ssl_disabled,
     ssl_key,
+    openid_token_file,
     pool_size,
 ]
