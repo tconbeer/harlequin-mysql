@@ -408,6 +408,7 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
         ssl_cert: str | None = None,
         ssl_disabled: str | bool | None = False,
         ssl_key: str | None = None,
+        openid_token_file: str | None = None,
         pool_size: str | int | None = 5,
         **_: Any,
     ) -> None:
@@ -432,6 +433,7 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
                 "ssl_cert": ssl_cert,
                 "ssl_disabled": ssl_disabled if ssl_disabled is not None else False,
                 "ssl_key": ssl_key,
+                "openid_token_file": openid_token_file,
                 "pool_size": int(pool_size) if pool_size is not None else 5,
             }
         except (ValueError, TypeError) as e:
