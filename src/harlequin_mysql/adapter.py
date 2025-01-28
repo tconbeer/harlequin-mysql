@@ -25,6 +25,7 @@ from mysql.connector.pooling import (
 )
 from textual_fastdatatable.backend import AutoBackendType
 
+from harlequin_mysql.catalog import DatabaseCatalogItem
 from harlequin_mysql.cli_options import MYSQLADAPTER_OPTIONS
 from harlequin_mysql.completions import load_completions
 
@@ -242,39 +243,10 @@ class HarlequinMySQLConnection(HarlequinConnection):
 
     def get_catalog(self) -> Catalog:
         databases = self._get_databases()
-        db_items: list[CatalogItem] = []
-        for (db,) in databases:
-            relations = self._get_relations(db)
-            rel_items: list[CatalogItem] = []
-            for rel, rel_type in relations:
-                cols = self._get_columns(db, rel)
-                col_items = [
-                    CatalogItem(
-                        qualified_identifier=f"`{db}`.`{rel}`.`{col}`",
-                        query_name=f"`{col}`",
-                        label=col,
-                        type_label=self._get_short_col_type(col_type),
-                    )
-                    for col, col_type in cols
-                ]
-                rel_items.append(
-                    CatalogItem(
-                        qualified_identifier=f"`{db}`.`{rel}`",
-                        query_name=f"`{db}`.`{rel}`",
-                        label=rel,
-                        type_label=rel_type,
-                        children=col_items,
-                    )
-                )
-            db_items.append(
-                CatalogItem(
-                    qualified_identifier=f"`{db}`",
-                    query_name=f"`{db}`",
-                    label=db,
-                    type_label="db",
-                    children=rel_items,
-                )
-            )
+        db_items: list[CatalogItem] = [
+            DatabaseCatalogItem.from_label(label=db, connection=self)
+            for (db,) in databases
+        ]
         return Catalog(items=db_items)
 
     def get_completions(self) -> list[HarlequinCompletion]:
@@ -317,12 +289,10 @@ class HarlequinMySQLConnection(HarlequinConnection):
             f"""
             select 
                 table_name, 
-                case 
-                    when table_type like '%TABLE' then 't' 
-                    else 'v' 
-                end as table_type
+                table_type
             from information_schema.tables
             where table_schema = '{db_name}'
+            and table_type != 'SYSTEM VIEW'
             order by table_name asc
             ;"""
         )
@@ -358,7 +328,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
         return results
 
     @staticmethod
-    def _get_short_col_type(info_schema_type: str) -> str:
+    def _short_column_type(info_schema_type: str) -> str:
         mapping = {
             "bigint": "###",
             "binary": "010",

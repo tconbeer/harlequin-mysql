@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 -   Bumps the MySQL Connector Python version to >=9.1
 -   Bumps the required Harlequin version to >= 1.25.0
 -   Adds support for the `openid_token_file` connection option introduced with MySQL Connector 9.1
+-   This adapter now lazy-loads the catalog, which will dramatically improve the catalog performance for large databases with thousands of objects.
+-   This adapter now implements interactions for catalog items, like dropping tables, inserting columns at the cursor, etc.
 
 ## [1.0.0] - 2025-01-07
 
