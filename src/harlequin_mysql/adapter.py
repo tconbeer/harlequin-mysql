@@ -406,7 +406,9 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
                 "ssl_key": ssl_key,
                 "openid_token_file": openid_token_file,
                 "pool_size": int(pool_size) if pool_size is not None else 5,
-                "allow_local_infile": enable_cleartext_plugin if enable_cleartext_plugin is not None else False,
+                "allow_local_infile": enable_cleartext_plugin
+                if enable_cleartext_plugin is not None
+                else False,
             }
         except (ValueError, TypeError) as e:
             raise HarlequinConfigError(

@@ -69,7 +69,10 @@ def test_enable_cleartext_plugin_false() -> None:
 
 def test_enable_cleartext_plugin_string_true() -> None:
     adapter = HarlequinMySQLAdapter(
-        conn_str=tuple(), user="root", password="example", enable_cleartext_plugin="true"
+        conn_str=tuple(),
+        user="root",
+        password="example",
+        enable_cleartext_plugin="true",
     )
     assert adapter.options["allow_local_infile"] == "true"
 
