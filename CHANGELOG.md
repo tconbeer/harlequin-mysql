@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [1.2.0] - 2025-08-20
 
+-   Adds the `--enable-cleartext-plugin` option ([#32](https://github.com/tconbeer/harlequin-mysql/pull/32) - thank you, [r-cha](https://github.com/r-cha)!)
+
 ## [1.1.0] - 2025-01-28
 
 -   Bumps the MySQL Connector Python version to >=9.1
