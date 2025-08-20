@@ -48,6 +48,35 @@ def test_init_extra_kwargs() -> None:
     ).connect()
 
 
+def test_enable_cleartext_plugin_default() -> None:
+    adapter = HarlequinMySQLAdapter(conn_str=tuple(), user="root", password="example")
+    assert adapter.options["allow_local_infile"] is False
+
+
+def test_enable_cleartext_plugin_true() -> None:
+    adapter = HarlequinMySQLAdapter(
+        conn_str=tuple(), user="root", password="example", enable_cleartext_plugin=True
+    )
+    assert adapter.options["allow_local_infile"] is True
+
+
+def test_enable_cleartext_plugin_false() -> None:
+    adapter = HarlequinMySQLAdapter(
+        conn_str=tuple(), user="root", password="example", enable_cleartext_plugin=False
+    )
+    assert adapter.options["allow_local_infile"] is False
+
+
+def test_enable_cleartext_plugin_string_true() -> None:
+    adapter = HarlequinMySQLAdapter(
+        conn_str=tuple(),
+        user="root",
+        password="example",
+        enable_cleartext_plugin="true",
+    )
+    assert adapter.options["allow_local_infile"] == "true"
+
+
 def test_connect_raises_connection_error() -> None:
     with pytest.raises(HarlequinConnectionError):
         _ = HarlequinMySQLAdapter(conn_str=("foo",)).connect()

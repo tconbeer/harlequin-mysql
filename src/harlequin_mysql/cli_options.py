@@ -132,6 +132,12 @@ pool_size = TextOption(
 )
 
 
+enable_cleartext_plugin = FlagOption(
+    name="enable-cleartext-plugin",
+    description="Enable the cleartext authentication plugin for MySQL connections.",
+)
+
+
 MYSQLADAPTER_OPTIONS = [
     host,
     port,
@@ -148,4 +154,5 @@ MYSQLADAPTER_OPTIONS = [
     ssl_key,
     openid_token_file,
     pool_size,
+    enable_cleartext_plugin,
 ]
