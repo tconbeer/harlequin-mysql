@@ -1,6 +1,6 @@
 # harlequin-mysql
 
-This repo provides the Harlequin adapter for MySQL.
+This repo provides the Harlequin adapter for MySQL/MariaDB.
 
 ## Installation
 
@@ -50,13 +50,15 @@ pipx install harlequin[mysql]
 
 ## Usage and Configuration
 
-You can open Harlequin with the MySQL adapter by selecting it with the `-a` option and passing connection parameters as CLI options:
+You can open Harlequin with the MySQL/MariaDB adapter by selecting it with the `-a` option and passing connection parameters as CLI options:
 
 ```bash
 harlequin -a mysql -h localhost -p 3306 -U root --password example --database dev
 ```
 
-The MySQL adapter does not accept a connection string or DSN.
+Note: use `-a mysql` for both MySQL and MariaDB servers.
+
+The MySQL/MariaDB adapter does not accept a connection string or DSN.
 
 Many more options are available; to see the full list, run:
 
