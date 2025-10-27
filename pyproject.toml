@@ -13,7 +13,7 @@ packages = [
 mysql = "harlequin_mysql:HarlequinMySQLAdapter"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.14"
+python = ">=3.9"
 harlequin = ">=1.25.0,<3"
 mysql-connector-python = "^9.1.0"
 
