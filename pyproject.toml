@@ -1,31 +1,38 @@
-[tool.poetry]
+[project]
 name = "harlequin-mysql"
 version = "1.2.0"
 description = "A Harlequin adapter for MySQL."
-authors = ["Ted Conbeer <tconbeer@users.noreply.github.com>"]
+authors = [
+    { name = "Ted Conbeer", email = "tconbeer@users.noreply.github.com" },
+]
 license = "MIT"
 readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "harlequin>=1.25.0,<3",
+    "mysql-connector-python>=9.1.0,<10",
+]
+
+[project.entry-points."harlequin.adapter"]
+mysql = "harlequin_mysql:HarlequinMySQLAdapter"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6,<1",
+    "pytest>=8,<9",
+    "mypy>=1.11,<2",
+    "pre-commit>=3.5.0,<4",
+    "importlib-metadata>=4.6.0; python_full_version < '3.10.0'",
+]
+
+[tool.poetry]
+dependencies.python = ">=3.9,<3.14"
 packages = [
     { include = "harlequin_mysql", from = "src" },
 ]
 
-[tool.poetry.plugins."harlequin.adapter"]
-mysql = "harlequin_mysql:HarlequinMySQLAdapter"
-
-[tool.poetry.dependencies]
-python = ">=3.9"
-harlequin = ">=1.25.0,<3"
-mysql-connector-python = "^9.1.0"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.6"
-pytest = "^8"
-mypy = "^1.11"
-pre-commit = "^3.5.0"
-importlib_metadata = { version = ">=4.6.0", python = "<3.10.0" }
-
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2"]
 build-backend = "poetry.core.masonry.api"
 
 
