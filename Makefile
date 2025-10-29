@@ -1,9 +1,9 @@
 .PHONY: check
 check:
-	poetry run ruff format .
-	poetry run ruff check . --fix
-	poetry run mypy
-	poetry run pytest
+	uv run ruff format .
+	uv run ruff check . --fix
+	uv run mypy
+	uv run pytest
 
 .PHONY: init
 init:
@@ -15,4 +15,4 @@ clean:
 
 .PHONY: serve
 serve:
-	poetry run harlequin -P None -a mysql -h localhost -U root --password example --database dev
+	uv run harlequin -P None -a mysql -h localhost -U root --password example --database dev

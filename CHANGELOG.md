@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+-  Drops support for Python 3.9; adds support for Python 3.14
+-  This project is now built using uv.
+
 ## [1.2.0] - 2025-08-20
 
 -   Adds the `--enable-cleartext-plugin` option ([#32](https://github.com/tconbeer/harlequin-mysql/pull/32) - thank you, [r-cha](https://github.com/r-cha)!)
