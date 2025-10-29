@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sys
+from importlib.metadata import entry_points
 
 import pytest
 from harlequin import (
@@ -19,11 +19,6 @@ from harlequin_mysql.adapter import (
     HarlequinMySQLAdapter,
     HarlequinMySQLConnection,
 )
-
-if sys.version_info < (3, 10):
-    from importlib_metadata import entry_points
-else:
-    from importlib.metadata import entry_points
 
 
 def test_plugin_discovery() -> None:

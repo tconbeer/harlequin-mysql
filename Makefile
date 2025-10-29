@@ -1,9 +1,9 @@
 .PHONY: check
 check:
-	ruff format .
-	ruff check . --fix
-	mypy
-	pytest
+	uv run ruff format .
+	uv run ruff check . --fix
+	uv run mypy
+	uv run pytest
 
 .PHONY: init
 init:
@@ -15,4 +15,4 @@ clean:
 
 .PHONY: serve
 serve:
-	harlequin -P None -a mysql -h localhost -U root --password example --database dev
+	uv run harlequin -P None -a mysql -h localhost -U root --password example --database dev

@@ -4,48 +4,10 @@ This repo provides the Harlequin adapter for MySQL/MariaDB.
 
 ## Installation
 
-`harlequin-mysql` depends on `harlequin`, so installing this package will also install Harlequin.
-
-### Using pip
-
-To install this adapter into an activated virtual environment:
-```bash
-pip install harlequin-mysql
-```
-
-### Using poetry
+You must install the `harlequin-mysql` package into the same environment as `harlequin`. The best and easiest way to do this is to use `uv` to install Harlequin with the `mysql` extra:
 
 ```bash
-poetry add harlequin-mysql
-```
-
-### Using pipx
-
-If you do not already have Harlequin installed:
-
-```bash
-pip install harlequin-mysql
-```
-
-If you would like to add the Postgres adapter to an existing Harlequin installation:
-
-```bash
-pipx inject harlequin harlequin-mysql
-```
-
-### As an Extra
-Alternatively, you can install Harlequin with the `mysql` extra:
-
-```bash
-pip install harlequin[mysql]
-```
-
-```bash
-poetry add harlequin[mysql]
-```
-
-```bash
-pipx install harlequin[mysql]
+uv tool install 'harlequin[mysql]'
 ```
 
 ## Usage and Configuration
