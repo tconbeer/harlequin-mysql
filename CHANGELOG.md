@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixes a crash after executing a `USE <database>;` statement, caused by the trailing semicolon (or backticks) being parsed as part of the database name ([tconbeer/harlequin#982](https://github.com/tconbeer/harlequin/issues/982)).
+- Failures to get a connection from the pool are now raised as query errors, so Harlequin displays them instead of crashing.
+
 ## [1.3.0] - 2025-10-29
 
 - Drops support for Python 3.9; adds support for Python 3.14

@@ -18,6 +18,7 @@ from harlequin.exception import (
 )
 from mysql.connector import FieldType
 from mysql.connector.cursor import MySQLCursor
+from mysql.connector.errors import Error as MySQLError
 from mysql.connector.errors import InternalError, PoolError
 from mysql.connector.pooling import (
     MySQLConnectionPool,
@@ -29,9 +30,7 @@ from harlequin_mysql.catalog import DatabaseCatalogItem
 from harlequin_mysql.cli_options import MYSQLADAPTER_OPTIONS
 from harlequin_mysql.completions import load_completions
 
-USE_DATABASE_PROG = re.compile(
-    r"\s*use\s+([^\\/?%*:|\"<>.]{1,64})", flags=re.IGNORECASE
-)
+USE_DATABASE_PROG = re.compile(r"\s*use\s+\S", flags=re.IGNORECASE)
 QUERY_INTERRUPT_MSG = "1317 (70100): Query execution was interrupted"
 
 
@@ -158,6 +157,15 @@ class HarlequinMySQLConnection(HarlequinConnection):
             # way to show an error to the user without aborting processing
             # all the other cursors).
             return None, None
+        except MySQLError as e:
+            # the pool reconfigures and reconnects its connections lazily, so
+            # a bad config (e.g., a database that has since been dropped) shows
+            # up here. Raise a query error so Harlequin shows the message
+            # instead of crashing.
+            raise HarlequinQueryError(
+                msg=str(e),
+                title="Harlequin could not connect to your database.",
+            ) from e
 
         try:
             cur: MySQLCursor = conn.cursor(buffered=buffered)
@@ -205,24 +213,37 @@ class HarlequinMySQLConnection(HarlequinConnection):
                 retval = HarlequinMySQLCursor(cur, conn=conn, harlequin_conn=self)
             else:
                 cur.close()
+                if USE_DATABASE_PROG.match(query):
+                    self._sync_pool_database(conn)
                 conn.close()
                 if connection_id:
                     self._in_use_connections.discard(connection_id)
 
-        # this is a hack to update all connections in the pool if the user
-        # changes the database for the active connection.
-        # it is impossible to check the database or other config
-        # of a connection with an open cursor, and we can't use a dedicated
-        # connection for user queries, since mysql only supports a single
-        # (unfetched) cursor per connection.
-        if match := USE_DATABASE_PROG.match(query):
-            new_db = match.group(1)
-            self.set_pool_config(database=new_db)
         return retval
+
+    def _sync_pool_database(self, conn: PooledMySQLConnection) -> None:
+        """
+        This is a hack to update all connections in the pool if the user
+        changes the database for the active connection.
+        It is impossible to check the database or other config
+        of a connection with an open cursor, and we can't use a dedicated
+        connection for user queries, since mysql only supports a single
+        (unfetched) cursor per connection.
+
+        The active database is read back from the server, since parsing it out
+        of the query is error-prone (the query may end with a semicolon, the
+        name may be quoted, etc.).
+        """
+        with suppress(MySQLError):
+            if new_db := conn.database:
+                self.set_pool_config(database=new_db)
 
     def cancel(self) -> None:
         # get a new cursor to execute the KILL statements
-        conn, cur = self.safe_get_mysql_cursor()
+        try:
+            conn, cur = self.safe_get_mysql_cursor()
+        except HarlequinQueryError:
+            return None
         if conn is None or cur is None:
             return None
 
