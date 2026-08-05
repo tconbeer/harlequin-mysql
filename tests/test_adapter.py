@@ -209,7 +209,19 @@ def test_execute_more_than_pool_size_ddl_does_not_raise(
     assert len(cursors) == number_of_ddl_queries
 
 
-def test_use_database_updates_pool(connection: HarlequinMySQLConnection) -> None:
+@pytest.mark.parametrize(
+    "query",
+    [
+        "use mysql",
+        "use mysql;",
+        "USE mysql;\n\n",
+        "use `mysql`;",
+        "  use\n  mysql  ;  ",
+    ],
+)
+def test_use_database_updates_pool(
+    connection: HarlequinMySQLConnection, query: str
+) -> None:
     conn, cur = connection.safe_get_mysql_cursor()
     assert conn is not None
     assert cur is not None
@@ -217,7 +229,7 @@ def test_use_database_updates_pool(connection: HarlequinMySQLConnection) -> None
     cur.close()
     conn.close()
 
-    connection.execute("use mysql")
+    connection.execute(query)
 
     pool_size = connection._pool.pool_size
 
@@ -236,6 +248,23 @@ def test_use_database_updates_pool(connection: HarlequinMySQLConnection) -> None
         cur.close()
     for conn in conns:
         conn.close()
+
+
+def test_use_database_script(connection: HarlequinMySQLConnection) -> None:
+    """
+    A script that starts with a USE statement should execute against the
+    named database. See harlequin#982.
+    """
+    for query in [
+        "use test;",
+        "create table temp1 (\n    id int\n);",
+        "insert into temp1 values (1);",
+    ]:
+        assert connection.execute(query) is None
+
+    cur = connection.execute("select id from test.temp1")
+    assert cur is not None
+    assert cur.fetchall() == [(1,)]
 
 
 def test_close(connection: HarlequinMySQLConnection) -> None:
