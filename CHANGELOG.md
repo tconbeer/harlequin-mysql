@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-05
+
 - Fixes a crash after executing a `USE <database>;` statement, caused by the trailing semicolon (or backticks) being parsed as part of the database name ([tconbeer/harlequin#982](https://github.com/tconbeer/harlequin/issues/982)).
 - Failures to get a connection from the pool are now raised as query errors, so Harlequin displays them instead of crashing.
 
@@ -72,7 +74,8 @@ All notable changes to this project will be documented in this file.
 
 - Adds a basic MySQL adapter with most common connection options.
 
-[unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.0...HEAD
+[unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.1...HEAD
+[1.3.1]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.0.0...1.1.0
