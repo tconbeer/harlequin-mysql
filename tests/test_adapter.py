@@ -10,7 +10,11 @@ from harlequin import (
     HarlequinCursor,
 )
 from harlequin.catalog import Catalog, CatalogItem
-from harlequin.exception import HarlequinConnectionError, HarlequinQueryError
+from harlequin.exception import (
+    HarlequinConfigError,
+    HarlequinConnectionError,
+    HarlequinQueryError,
+)
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.pooling import PooledMySQLConnection
 from textual_fastdatatable.backend import create_backend
@@ -271,3 +275,132 @@ def test_close(connection: HarlequinMySQLConnection) -> None:
     connection.close()
     # run again to test error handling.
     connection.close()
+
+
+def test_implements_read_only() -> None:
+    assert HarlequinMySQLAdapter.IMPLEMENTS_READ_ONLY is True
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (False, False),
+        (True, True),
+        (None, False),
+        ("true", True),
+        ("True", True),
+        ("false", False),
+        ("1", True),
+        ("0", False),
+    ],
+)
+def test_read_only_option(value: bool | str | None, expected: bool) -> None:
+    adapter = HarlequinMySQLAdapter(
+        conn_str=tuple(), read_only=value, user="root", password="example"
+    )
+    assert adapter.read_only is expected
+    # read_only is not a connection arg; it must not reach the pool.
+    assert "read_only" not in adapter.options
+
+
+def test_read_only_default() -> None:
+    adapter = HarlequinMySQLAdapter(conn_str=tuple(), user="root", password="example")
+    assert adapter.read_only is False
+    assert "read_only" not in adapter.options
+
+
+def test_read_only_bad_value_raises_config_error() -> None:
+    with pytest.raises(HarlequinConfigError):
+        _ = HarlequinMySQLAdapter(
+            conn_str=tuple(), read_only="maybe", user="root", password="example"
+        )
+
+
+def test_read_only_connection_can_read(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    cur = read_only_connection.execute("select a from foo")
+    assert cur is not None
+    assert cur.fetchall() == [(1,)]
+
+
+def test_read_only_connection_can_get_catalog(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    catalog = read_only_connection.get_catalog()
+    assert any(item.label == "test_read_only" for item in catalog.items)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "insert into foo values (2)",
+        "update foo set a = 2",
+        "delete from foo",
+        "truncate table foo",
+        "create table bar (a int)",
+        "create temporary table bar (a int)",
+        "drop table foo",
+        "alter table foo add column b int",
+        "create index foo_idx on foo (a)",
+        "rename table foo to baz",
+        "create view v as select a from foo",
+        "create database test_read_only_new",
+    ],
+)
+def test_read_only_connection_refuses_writes(
+    read_only_connection: HarlequinMySQLConnection, query: str
+) -> None:
+    with pytest.raises(HarlequinQueryError):
+        _ = read_only_connection.execute(query)
+
+    cur = read_only_connection.execute("select a from foo")
+    assert cur is not None
+    assert cur.fetchall() == [(1,)]
+
+
+def test_read_only_applies_to_every_pooled_connection(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    """
+    The pool creates connections lazily and does not reset their sessions, so
+    check that more connections than the pool holds all refuse writes.
+    """
+    for _ in range(read_only_connection._pool.pool_size * 2):
+        with pytest.raises(HarlequinQueryError):
+            _ = read_only_connection.execute("insert into foo values (2)")
+
+
+def test_read_only_survives_set_transaction_read_write(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    # this statement is not itself a write, so the server allows it, but the
+    # next statement gets a read-only session again.
+    _ = read_only_connection.execute("set session transaction read write")
+    with pytest.raises(HarlequinQueryError):
+        _ = read_only_connection.execute("insert into foo values (2)")
+
+
+def test_read_only_connection_refuses_multiple_statements(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    with pytest.raises(HarlequinQueryError):
+        _ = read_only_connection.execute(
+            "set session transaction read write; insert into foo values (2)"
+        )
+
+
+def test_read_only_connection_leaves_no_open_transaction(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    _ = read_only_connection.execute("start transaction")
+    with pytest.raises(HarlequinQueryError):
+        _ = read_only_connection.execute("insert into foo values (2)")
+
+
+def test_writes_still_work_without_read_only(
+    connection: HarlequinMySQLConnection,
+) -> None:
+    assert connection.read_only is False
+    assert connection.execute("create table rw (a int)") is None
+    assert connection.execute("insert into rw values (1)") is None

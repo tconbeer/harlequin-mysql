@@ -17,6 +17,7 @@ from harlequin.exception import (
     HarlequinQueryError,
 )
 from mysql.connector import FieldType
+from mysql.connector.constants import ClientFlag
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.errors import Error as MySQLError
 from mysql.connector.errors import InternalError, PoolError
@@ -32,6 +33,31 @@ from harlequin_mysql.completions import load_completions
 
 USE_DATABASE_PROG = re.compile(r"\s*use\s+\S", flags=re.IGNORECASE)
 QUERY_INTERRUPT_MSG = "1317 (70100): Query execution was interrupted"
+READ_ONLY_STMT = "set session transaction read only"
+
+TRUTHY_STRINGS = ("true", "t", "yes", "y", "on", "1")
+FALSEY_STRINGS = ("false", "f", "no", "n", "off", "0", "")
+
+
+def _parse_read_only(read_only: bool | str | None) -> bool:
+    """
+    Harlequin passes read_only as a bool, but a config file could set it to a
+    string. An unrecognized value is an error, since silently guessing wrong
+    could let writes through a session the user believes is read-only.
+    """
+    if read_only is None:
+        return False
+    if isinstance(read_only, bool):
+        return read_only
+    if isinstance(read_only, str):
+        if read_only.strip().lower() in TRUTHY_STRINGS:
+            return True
+        if read_only.strip().lower() in FALSEY_STRINGS:
+            return False
+    raise HarlequinConfigError(
+        msg=f"MySQL adapter could not interpret read_only value: {read_only!r}",
+        title="Harlequin could not initialize the selected adapter.",
+    )
 
 
 class HarlequinMySQLCursor(HarlequinCursor):
@@ -125,9 +151,19 @@ class HarlequinMySQLConnection(HarlequinConnection):
         *_: Any,
         init_message: str = "",
         options: dict[str, Any],
+        read_only: bool = False,
     ) -> None:
         self.init_message = init_message
+        self.read_only = read_only
         self._in_use_connections: set[int] = set()
+        if read_only:
+            # the server only refuses the writes it is asked to make, one
+            # statement at a time; a single execute() that sends
+            # "set session transaction read write; insert ..." would slip a
+            # write past it. Harlequin splits its buffers into single
+            # statements, so nothing legitimate needs multiple statements
+            # per execute().
+            options = {**options, "client_flags": [-ClientFlag.MULTI_STATEMENTS]}
         try:
             self._pool: MySQLConnectionPool = MySQLConnectionPool(
                 pool_name="harlequin",
@@ -175,7 +211,39 @@ class HarlequinMySQLConnection(HarlequinConnection):
             conn.consume_results()
             cur = conn.cursor(buffered=buffered)
 
+        if self.read_only:
+            self._set_session_read_only(conn, cur)
+
         return conn, cur
+
+    def _set_session_read_only(
+        self, conn: PooledMySQLConnection, cur: MySQLCursor
+    ) -> None:
+        """
+        Asks the server to refuse writes (both DML and DDL) on this connection,
+        with error 1792, ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION.
+
+        The pool creates its connections lazily and does not reset their
+        sessions, so this has to run every time a connection is checked out,
+        not just once per connection: that covers every connection the pool
+        hands out, and undoes a `set session transaction read write` from an
+        earlier query. The setting only applies to the next transaction, so a
+        transaction left open by an earlier query is rolled back first; that
+        cannot lose any work, since it could not have written anything.
+        """
+        try:
+            if conn.in_transaction:
+                conn.rollback()
+            cur.execute(READ_ONLY_STMT)
+        except MySQLError as e:
+            # never hand back a connection that may accept writes
+            with suppress(MySQLError):
+                cur.close()
+                conn.close()
+            raise HarlequinQueryError(
+                msg=str(e),
+                title="Harlequin could not put your connection in read-only mode.",
+            ) from e
 
     def set_pool_config(self, **config: Any) -> None:
         """
@@ -382,10 +450,13 @@ class HarlequinMySQLConnection(HarlequinConnection):
 class HarlequinMySQLAdapter(HarlequinAdapter):
     ADAPTER_OPTIONS = MYSQLADAPTER_OPTIONS
     IMPLEMENTS_CANCEL = True
+    # enforced by the server, with `set session transaction read only`
+    IMPLEMENTS_READ_ONLY = True
 
     def __init__(
         self,
         conn_str: Sequence[str],
+        read_only: bool | str | None = False,
         host: str | None = None,
         port: str | int | None = 3306,
         unix_socket: str | None = None,
@@ -408,6 +479,9 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
             raise HarlequinConnectionError(
                 f"Cannot provide a DSN to the MySQL adapter. Got:\n{conn_str}"
             )
+        # read_only is not a mysql-connector connection argument, so it is kept
+        # out of self.options, which is passed to the connection pool.
+        self.read_only = _parse_read_only(read_only)
         try:
             self.options = {
                 "host": host,
@@ -449,5 +523,7 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
         return f"{host}{sock}:{port}/{database}"
 
     def connect(self) -> HarlequinMySQLConnection:
-        conn = HarlequinMySQLConnection(conn_str=tuple(), options=self.options)
+        conn = HarlequinMySQLConnection(
+            conn_str=tuple(), options=self.options, read_only=self.read_only
+        )
         return conn
