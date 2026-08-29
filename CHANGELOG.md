@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-29
+
 - Adds support for Harlequin's `--read-only` option: every connection runs `set session transaction read only`, so the server refuses DML and DDL ([#46](https://github.com/tconbeer/harlequin-mysql/issues/46)).
 - Adds catalog search: `hsql --catalog-search TERM` finds databases, tables, views, and columns, in one query ([#47](https://github.com/tconbeer/harlequin-mysql/issues/47)).
 - Catalog items now carry `type_name`, the full type as MySQL spells it, like `decimal(18,2)`.
@@ -79,7 +81,8 @@ All notable changes to this project will be documented in this file.
 
 - Adds a basic MySQL adapter with most common connection options.
 
-[unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.1...HEAD
+[unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.4.0...HEAD
+[1.4.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.1...1.4.0
 [1.3.1]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.1.0...1.2.0
