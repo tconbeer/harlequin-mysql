@@ -37,16 +37,14 @@ for a stronger guarantee, connect with a read-only account.
 
 ### Catalog search
 
-This adapter supports Harlequin's `--catalog-search` option, which answers
-where an object lives without walking the catalog a level at a time:
+This adapter supports Harlequin's `--catalog-search` option:
 
 ```bash
 hsql --catalog-search customer_id -a mysql -h localhost -U root --password example
 ```
 
-The term is matched case-insensitively against any part of a database, table,
-view, or column name. `information_schema` is server-wide, so one query
-searches every database on the server.
+The term matches any part of a database, table, view, or column name,
+case-insensitively; one query searches every database.
 
 Many more options are available; to see the full list, run:
 

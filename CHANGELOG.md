@@ -5,8 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 - Adds support for Harlequin's `--read-only` option: every connection runs `set session transaction read only`, so the server refuses DML and DDL ([#46](https://github.com/tconbeer/harlequin-mysql/issues/46)).
-- Implements `search_catalog()` and declares `IMPLEMENTS_CATALOG_SEARCH`, so `hsql --catalog-search TERM` finds databases, tables, views, and columns. `information_schema` is server-wide, so one query searches every database ([#47](https://github.com/tconbeer/harlequin-mysql/issues/47)).
-- Catalog items now carry `type_name`, the full type as MySQL spells it (`decimal(18,2)` for a column, `BASE TABLE` for a table), alongside the shortened `type_label`.
+- Adds catalog search: `hsql --catalog-search TERM` finds databases, tables, views, and columns, in one query ([#47](https://github.com/tconbeer/harlequin-mysql/issues/47)).
+- Catalog items now carry `type_name`, the full type as MySQL spells it, like `decimal(18,2)`.
 - Bumps the required Harlequin version to >= 2.11.
 
 ## [1.3.1] - 2026-08-05
