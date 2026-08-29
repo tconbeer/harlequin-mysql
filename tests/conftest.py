@@ -41,3 +41,34 @@ def connection() -> Generator[HarlequinMySQLConnection, None, None]:
     cur.execute("drop database if exists two;")
     cur.execute("drop database if exists three;")
     cur.close()
+
+
+@pytest.fixture
+def read_only_connection() -> Generator[HarlequinMySQLConnection, None, None]:
+    mysqlconn = connect(
+        host="localhost",
+        user="root",
+        password="example",
+        database="mysql",
+        autocommit=True,
+    )
+    cur = mysqlconn.cursor()
+    cur.execute("drop database if exists test_read_only;")
+    cur.execute("drop database if exists test_read_only_new;")
+    cur.execute("create database test_read_only;")
+    cur.execute("create table test_read_only.foo (a int);")
+    cur.execute("insert into test_read_only.foo values (1);")
+    cur.close()
+    conn = HarlequinMySQLAdapter(
+        conn_str=tuple(),
+        read_only=True,
+        host="localhost",
+        user="root",
+        password="example",
+        database="test_read_only",
+    ).connect()
+    yield conn
+    cur = mysqlconn.cursor()
+    cur.execute("drop database if exists test_read_only;")
+    cur.execute("drop database if exists test_read_only_new;")
+    cur.close()

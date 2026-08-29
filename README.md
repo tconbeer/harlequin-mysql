@@ -22,6 +22,19 @@ Note: use `-a mysql` for both MySQL and MariaDB servers.
 
 The MySQL/MariaDB adapter does not accept a connection string or DSN.
 
+### Read-only mode
+
+This adapter supports Harlequin's `--read-only` option:
+
+```bash
+harlequin --read-only -a mysql -h localhost -U root --password example --database dev
+```
+
+Every connection runs `set session transaction read only`, so the server
+refuses DML and DDL with error 1792 (tested on MySQL 8.0 and MariaDB 10.11).
+Statements that do not touch data, like `set global ...`, are still allowed;
+for a stronger guarantee, connect with a read-only account.
+
 Many more options are available; to see the full list, run:
 
 ```bash

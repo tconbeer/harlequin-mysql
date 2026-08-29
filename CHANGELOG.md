@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Adds support for Harlequin's `--read-only` option: every connection runs `set session transaction read only`, so the server refuses DML and DDL ([#46](https://github.com/tconbeer/harlequin-mysql/issues/46)).
+
 ## [1.3.1] - 2026-08-05
 
 - Fixes a crash after executing a `USE <database>;` statement, caused by the trailing semicolon (or backticks) being parsed as part of the database name ([tconbeer/harlequin#982](https://github.com/tconbeer/harlequin/issues/982)).
