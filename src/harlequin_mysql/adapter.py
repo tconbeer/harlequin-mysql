@@ -35,30 +35,6 @@ USE_DATABASE_PROG = re.compile(r"\s*use\s+\S", flags=re.IGNORECASE)
 QUERY_INTERRUPT_MSG = "1317 (70100): Query execution was interrupted"
 READ_ONLY_STMT = "set session transaction read only"
 
-TRUTHY_STRINGS = ("true", "t", "yes", "y", "on", "1")
-FALSEY_STRINGS = ("false", "f", "no", "n", "off", "0", "")
-
-
-def _parse_read_only(read_only: bool | str | None) -> bool:
-    """
-    Harlequin passes read_only as a bool, but a config file could set it to a
-    string. An unrecognized value is an error, since silently guessing wrong
-    could let writes through a session the user believes is read-only.
-    """
-    if read_only is None:
-        return False
-    if isinstance(read_only, bool):
-        return read_only
-    if isinstance(read_only, str):
-        if read_only.strip().lower() in TRUTHY_STRINGS:
-            return True
-        if read_only.strip().lower() in FALSEY_STRINGS:
-            return False
-    raise HarlequinConfigError(
-        msg=f"MySQL adapter could not interpret read_only value: {read_only!r}",
-        title="Harlequin could not initialize the selected adapter.",
-    )
-
 
 class HarlequinMySQLCursor(HarlequinCursor):
     def __init__(
@@ -456,7 +432,7 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
     def __init__(
         self,
         conn_str: Sequence[str],
-        read_only: bool | str | None = False,
+        read_only: bool = False,
         host: str | None = None,
         port: str | int | None = 3306,
         unix_socket: str | None = None,
@@ -479,9 +455,10 @@ class HarlequinMySQLAdapter(HarlequinAdapter):
             raise HarlequinConnectionError(
                 f"Cannot provide a DSN to the MySQL adapter. Got:\n{conn_str}"
             )
-        # read_only is not a mysql-connector connection argument, so it is kept
-        # out of self.options, which is passed to the connection pool.
-        self.read_only = _parse_read_only(read_only)
+        # Harlequin casts read_only to a bool before passing it here. It is
+        # not a mysql-connector connection argument, so it is kept out of
+        # self.options, which is passed to the connection pool.
+        self.read_only = bool(read_only)
         try:
             self.options = {
                 "host": host,

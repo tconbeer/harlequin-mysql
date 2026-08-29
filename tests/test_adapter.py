@@ -10,11 +10,7 @@ from harlequin import (
     HarlequinCursor,
 )
 from harlequin.catalog import Catalog, CatalogItem
-from harlequin.exception import (
-    HarlequinConfigError,
-    HarlequinConnectionError,
-    HarlequinQueryError,
-)
+from harlequin.exception import HarlequinConnectionError, HarlequinQueryError
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.pooling import PooledMySQLConnection
 from textual_fastdatatable.backend import create_backend
@@ -281,24 +277,12 @@ def test_implements_read_only() -> None:
     assert HarlequinMySQLAdapter.IMPLEMENTS_READ_ONLY is True
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        (False, False),
-        (True, True),
-        (None, False),
-        ("true", True),
-        ("True", True),
-        ("false", False),
-        ("1", True),
-        ("0", False),
-    ],
-)
-def test_read_only_option(value: bool | str | None, expected: bool) -> None:
+@pytest.mark.parametrize("value", [True, False])
+def test_read_only_option(value: bool) -> None:
     adapter = HarlequinMySQLAdapter(
         conn_str=tuple(), read_only=value, user="root", password="example"
     )
-    assert adapter.read_only is expected
+    assert adapter.read_only is value
     # read_only is not a connection arg; it must not reach the pool.
     assert "read_only" not in adapter.options
 
@@ -307,13 +291,6 @@ def test_read_only_default() -> None:
     adapter = HarlequinMySQLAdapter(conn_str=tuple(), user="root", password="example")
     assert adapter.read_only is False
     assert "read_only" not in adapter.options
-
-
-def test_read_only_bad_value_raises_config_error() -> None:
-    with pytest.raises(HarlequinConfigError):
-        _ = HarlequinMySQLAdapter(
-            conn_str=tuple(), read_only="maybe", user="root", password="example"
-        )
 
 
 def test_read_only_connection_can_read(
