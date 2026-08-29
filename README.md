@@ -35,6 +35,17 @@ refuses DML and DDL with error 1792 (tested on MySQL 8.0 and MariaDB 10.11).
 Statements that do not touch data, like `set global ...`, are still allowed;
 for a stronger guarantee, connect with a read-only account.
 
+### Catalog search
+
+This adapter supports Harlequin's `--catalog-search` option:
+
+```bash
+hsql --catalog-search customer_id -a mysql -h localhost -U root --password example
+```
+
+The term matches any part of a database, table, view, or column name,
+case-insensitively; one query searches every database.
+
 Many more options are available; to see the full list, run:
 
 ```bash

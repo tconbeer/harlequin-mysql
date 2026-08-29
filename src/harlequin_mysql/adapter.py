@@ -10,7 +10,12 @@ from harlequin import (
     HarlequinCursor,
 )
 from harlequin.autocomplete.completion import HarlequinCompletion
-from harlequin.catalog import Catalog, CatalogItem
+from harlequin.catalog import (
+    Catalog,
+    CatalogItem,
+    CatalogSearchKind,
+    CatalogSearchResult,
+)
 from harlequin.exception import (
     HarlequinConfigError,
     HarlequinConnectionError,
@@ -27,13 +32,96 @@ from mysql.connector.pooling import (
 )
 from textual_fastdatatable.backend import AutoBackendType
 
-from harlequin_mysql.catalog import DatabaseCatalogItem
+from harlequin_mysql.catalog import (
+    ColumnCatalogItem,
+    DatabaseCatalogItem,
+    RelationCatalogItem,
+    relation_catalog_item,
+)
 from harlequin_mysql.cli_options import MYSQLADAPTER_OPTIONS
 from harlequin_mysql.completions import load_completions
 
 USE_DATABASE_PROG = re.compile(r"\s*use\s+\S", flags=re.IGNORECASE)
 QUERY_INTERRUPT_MSG = "1317 (70100): Query execution was interrupted"
 READ_ONLY_STMT = "set session transaction read only"
+
+POOL_EXHAUSTED_MSG = (
+    "Connection pool exhausted. Try restarting Harlequin "
+    "with a larger pool or running fewer queries at once."
+)
+
+_SYSTEM_DATABASES = "'sys', 'information_schema', 'performance_schema', 'mysql'"
+"""The databases the catalog does not show, as a list for an `in` predicate."""
+
+_LIKE_ESCAPE = "!"
+"""What escapes a LIKE metacharacter in a term the caller typed.
+
+Not a backslash, whose meaning inside a string literal depends on the server's
+sql_mode: with NO_BACKSLASH_ESCAPES set, `escape '\\\\'` is two characters and
+the server rejects it.
+"""
+
+_SEARCH_DATABASES = f"""
+select s.schema_name, null, null, null, null, null
+from information_schema.schemata s
+where s.schema_name not in ({_SYSTEM_DATABASES})
+    and lower(s.schema_name) like lower(%s) escape '{_LIKE_ESCAPE}'
+"""
+
+_SEARCH_RELATIONS = f"""
+select t.table_schema, t.table_name, t.table_type, null, null, null
+from information_schema.tables t
+where t.table_schema not in ({_SYSTEM_DATABASES})
+    and t.table_type != 'SYSTEM VIEW'
+    and lower(t.table_name) like lower(%s) escape '{_LIKE_ESCAPE}'
+"""
+
+_SEARCH_COLUMNS = f"""
+select
+    c.table_schema, c.table_name, t.table_type,
+    c.column_name, c.data_type, c.column_type
+from information_schema.columns c
+join information_schema.tables t
+    on t.table_schema = c.table_schema
+    and t.table_name = c.table_name
+where c.table_schema not in ({_SYSTEM_DATABASES})
+    and t.table_type != 'SYSTEM VIEW'
+    and c.extra not like '%%INVISIBLE%%'
+    and lower(c.column_name) like lower(%s) escape '{_LIKE_ESCAPE}'
+"""
+
+_SEARCH_BRANCHES = {
+    "relations": (_SEARCH_RELATIONS,),
+    "columns": (_SEARCH_COLUMNS,),
+    "all": (_SEARCH_DATABASES, _SEARCH_RELATIONS, _SEARCH_COLUMNS),
+}
+"""Which levels each kind unions, every branch in the same six columns.
+
+A row names one item by filling in the levels above it and leaving the rest
+null, so `all` is every level of the catalog rather than the two below a
+database. `information_schema` is server-wide, so one query finds everything in
+every database.
+
+The predicates match what `_get_databases()`, `_get_relations()` and
+`_get_columns()` ask for, so that a search and the catalog tree agree about
+which objects exist. `%` is doubled because these queries are parameterized:
+the connector interpolates the parameters with Python's own %-formatting.
+"""
+
+_SEARCH_SQL = {
+    # MySQL sorts nulls first ascending, so an item arrives before its children
+    kind: " union all ".join(branches) + " order by 1, 2, 4"
+    for kind, branches in _SEARCH_BRANCHES.items()
+}
+"""One query per kind, ordered so that an item arrives before its children."""
+
+
+def _contains_pattern(term: str) -> str:
+    """A term as the LIKE pattern that matches any label containing it."""
+    escaped = term
+    for character in (_LIKE_ESCAPE, "%", "_"):
+        escaped = escaped.replace(character, f"{_LIKE_ESCAPE}{character}")
+    return f"%{escaped}%"
 
 
 class HarlequinMySQLCursor(HarlequinCursor):
@@ -314,6 +402,69 @@ class HarlequinMySQLConnection(HarlequinConnection):
         ]
         return Catalog(items=db_items)
 
+    def search_catalog(
+        self, term: str, kind: CatalogSearchKind = "all"
+    ) -> list[CatalogSearchResult]:
+        conn, cur = self.safe_get_mysql_cursor(buffered=True)
+        if conn is None or cur is None:
+            raise HarlequinConnectionError(
+                title="Connection pool exhausted",
+                msg=POOL_EXHAUSTED_MSG,
+            )
+        try:
+            cur.execute(
+                _SEARCH_SQL[kind],
+                [_contains_pattern(term)] * len(_SEARCH_BRANCHES[kind]),
+            )
+            # a row is (database, relation, relation_type, column, data_type,
+            # column_type), null below the level it names
+            found: list[tuple[Any, ...]] = cur.fetchall()
+        except MySQLError as e:
+            raise HarlequinQueryError(
+                msg=str(e),
+                title="MySQL raised an error searching the catalog:",
+            ) from e
+        finally:
+            cur.close()
+            conn.close()
+
+        databases: dict[str, DatabaseCatalogItem] = {}
+        relations: dict[tuple[str, str], RelationCatalogItem] = {}
+        results: list[CatalogSearchResult] = []
+        # a row names the deepest level it fills in, and carries its ancestors
+        # so that each one is built once and the match knows its own path
+        for database, relation, relation_type, column, data_type, column_type in found:
+            database_item = databases.setdefault(
+                database,
+                DatabaseCatalogItem.from_label(label=database, connection=self),
+            )
+            if relation is None:
+                results.append(CatalogSearchResult(item=database_item))
+                continue
+            relation_item = relations.setdefault(
+                (database, relation),
+                relation_catalog_item(
+                    parent=database_item, label=relation, type_name=relation_type
+                ),
+            )
+            if column is None:
+                results.append(
+                    CatalogSearchResult(item=relation_item, parents=(database,))
+                )
+                continue
+            results.append(
+                CatalogSearchResult(
+                    item=ColumnCatalogItem.from_parent(
+                        parent=relation_item,
+                        label=column,
+                        type_label=self._short_column_type(data_type),
+                        type_name=column_type,
+                    ),
+                    parents=(database, relation),
+                )
+            )
+        return results
+
     def get_completions(self) -> list[HarlequinCompletion]:
         return load_completions()
 
@@ -322,17 +473,12 @@ class HarlequinMySQLConnection(HarlequinConnection):
         if conn is None or cur is None:
             raise HarlequinConnectionError(
                 title="Connection pool exhausted",
-                msg=(
-                    "Connection pool exhausted. Try restarting Harlequin "
-                    "with a larger pool or running fewer queries at once."
-                ),
+                msg=POOL_EXHAUSTED_MSG,
             )
         cur.execute(
-            """
+            f"""
             show databases
-            where `Database` not in (
-                'sys', 'information_schema', 'performance_schema', 'mysql'
-            )
+            where `Database` not in ({_SYSTEM_DATABASES})
             """
         )
         results: list[tuple[str]] = cur.fetchall()  # type: ignore
@@ -345,10 +491,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
         if conn is None or cur is None:
             raise HarlequinConnectionError(
                 title="Connection pool exhausted",
-                msg=(
-                    "Connection pool exhausted. Try restarting Harlequin "
-                    "with a larger pool or running fewer queries at once."
-                ),
+                msg=POOL_EXHAUSTED_MSG,
             )
         cur.execute(
             f"""
@@ -366,19 +509,16 @@ class HarlequinMySQLConnection(HarlequinConnection):
         conn.close()
         return results
 
-    def _get_columns(self, db_name: str, rel_name: str) -> list[tuple[str, str]]:
+    def _get_columns(self, db_name: str, rel_name: str) -> list[tuple[str, str, str]]:
         conn, cur = self.safe_get_mysql_cursor(buffered=True)
         if conn is None or cur is None:
             raise HarlequinConnectionError(
                 title="Connection pool exhausted",
-                msg=(
-                    "Connection pool exhausted. Try restarting Harlequin "
-                    "with a larger pool or running fewer queries at once."
-                ),
+                msg=POOL_EXHAUSTED_MSG,
             )
         cur.execute(
             f"""
-            select column_name, data_type
+            select column_name, data_type, column_type
             from information_schema.columns
             where
                 table_schema = '{db_name}'
@@ -387,7 +527,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
             order by ordinal_position asc
             ;"""
         )
-        results: list[tuple[str, str]] = cur.fetchall()  # type: ignore
+        results: list[tuple[str, str, str]] = cur.fetchall()  # type: ignore
         cur.close()
         conn.close()
         return results
@@ -426,6 +566,8 @@ class HarlequinMySQLConnection(HarlequinConnection):
 class HarlequinMySQLAdapter(HarlequinAdapter):
     ADAPTER_OPTIONS = MYSQLADAPTER_OPTIONS
     IMPLEMENTS_CANCEL = True
+    # information_schema is server-wide, so one query searches every database
+    IMPLEMENTS_CATALOG_SEARCH = True
     # enforced by the server, with `set session transaction read only`
     IMPLEMENTS_READ_ONLY = True
 
