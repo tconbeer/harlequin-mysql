@@ -24,7 +24,7 @@ mysql = "harlequin_mysql:HarlequinMySQLAdapter"
 dev = [
     "harlequin==2.11.0",
     "ruff>=0.6,<1",
-    "pytest>=8,<9",
+    "pytest>=8,<10",
     "mypy>=1.11,<2",
     "pre-commit>=3.5.0,<4",
 ]
