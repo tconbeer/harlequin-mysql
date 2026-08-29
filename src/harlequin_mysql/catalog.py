@@ -28,6 +28,7 @@ class ColumnCatalogItem(InteractiveCatalogItem["HarlequinMySQLConnection"]):
         parent: "RelationCatalogItem",
         label: str,
         type_label: str,
+        type_name: str,
     ) -> "ColumnCatalogItem":
         column_qualified_identifier = f"{parent.qualified_identifier}.`{label}`"
         column_query_name = f"`{label}`"
@@ -36,6 +37,7 @@ class ColumnCatalogItem(InteractiveCatalogItem["HarlequinMySQLConnection"]):
             query_name=column_query_name,
             label=label,
             type_label=type_label,
+            type_name=type_name,
             connection=parent.connection,
             parent=parent,
             loaded=True,
@@ -58,9 +60,12 @@ class RelationCatalogItem(InteractiveCatalogItem["HarlequinMySQLConnection"]):
             ColumnCatalogItem.from_parent(
                 parent=self,
                 label=column_name,
-                type_label=self.connection._short_column_type(column_type),
+                type_label=self.connection._short_column_type(data_type),
+                # the full type, as MySQL spells it: data_type is only its
+                # name, so "varchar(20)" arrives here as "varchar"
+                type_name=column_type,
             )
-            for column_name, column_type in result
+            for column_name, data_type, column_type in result
         ]
 
 
@@ -74,6 +79,7 @@ class ViewCatalogItem(RelationCatalogItem):
         cls,
         parent: "DatabaseCatalogItem",
         label: str,
+        type_name: str,
     ) -> "ViewCatalogItem":
         relation_query_name = f"`{parent.label}`.`{label}`"
         relation_qualified_identifier = f"{parent.qualified_identifier}.`{label}`"
@@ -82,6 +88,7 @@ class ViewCatalogItem(RelationCatalogItem):
             query_name=relation_query_name,
             label=label,
             type_label="v",
+            type_name=type_name,
             connection=parent.connection,
             parent=parent,
         )
@@ -97,6 +104,7 @@ class TableCatalogItem(RelationCatalogItem):
         cls,
         parent: "DatabaseCatalogItem",
         label: str,
+        type_name: str,
     ) -> "TableCatalogItem":
         relation_query_name = f"`{parent.label}`.`{label}`"
         relation_qualified_identifier = f"{parent.qualified_identifier}.`{label}`"
@@ -105,6 +113,7 @@ class TableCatalogItem(RelationCatalogItem):
             query_name=relation_query_name,
             label=label,
             type_label="t",
+            type_name=type_name,
             connection=parent.connection,
             parent=parent,
         )
@@ -127,28 +136,28 @@ class DatabaseCatalogItem(InteractiveCatalogItem["HarlequinMySQLConnection"]):
             query_name=database_identifier,
             label=label,
             type_label="db",
+            type_name="database",
             connection=connection,
         )
 
     def fetch_children(self) -> list[RelationCatalogItem]:
         if self.connection is None:
             return []
-        children: list[RelationCatalogItem] = []
         result = self.connection._get_relations(self.label)
-        for table_label, table_type in result:
-            if table_type == "VIEW":
-                children.append(
-                    ViewCatalogItem.from_parent(
-                        parent=self,
-                        label=table_label,
-                    )
-                )
-            else:
-                children.append(
-                    TableCatalogItem.from_parent(
-                        parent=self,
-                        label=table_label,
-                    )
-                )
+        return [
+            relation_catalog_item(parent=self, label=table_label, type_name=table_type)
+            for table_label, table_type in result
+        ]
 
-        return children
+
+def relation_catalog_item(
+    parent: "DatabaseCatalogItem", label: str, type_name: str
+) -> RelationCatalogItem:
+    """
+    The catalog item for a relation, of the class its table_type calls for.
+
+    One place decides that, so that a relation found by a catalog search is
+    the same item the catalog tree shows for it.
+    """
+    cls = ViewCatalogItem if type_name == "VIEW" else TableCatalogItem
+    return cls.from_parent(parent=parent, label=label, type_name=type_name)

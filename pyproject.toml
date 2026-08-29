@@ -9,7 +9,7 @@ license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "harlequin>=1.25.0,<3",
+    "harlequin>=2.11.0,<3",
     "mysql-connector-python>=9.1.0,<10",
     # temp pin for py 3.14 until duckdb releases a new version with wheels.
     "duckdb>=1.4.2.dev0; python_version >= '3.14'",
@@ -22,7 +22,7 @@ mysql = "harlequin_mysql:HarlequinMySQLAdapter"
 
 [dependency-groups]
 dev = [
-    "harlequin==2.4.0",
+    "harlequin==2.11.0",
     "ruff>=0.6,<1",
     "pytest>=8,<9",
     "mypy>=1.11,<2",

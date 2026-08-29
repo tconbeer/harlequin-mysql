@@ -273,6 +273,10 @@ def test_close(connection: HarlequinMySQLConnection) -> None:
     connection.close()
 
 
+def test_implements_catalog_search() -> None:
+    assert HarlequinMySQLAdapter.IMPLEMENTS_CATALOG_SEARCH is True
+
+
 def test_implements_read_only() -> None:
     assert HarlequinMySQLAdapter.IMPLEMENTS_READ_ONLY is True
 
@@ -306,6 +310,15 @@ def test_read_only_connection_can_get_catalog(
 ) -> None:
     catalog = read_only_connection.get_catalog()
     assert any(item.label == "test_read_only" for item in catalog.items)
+
+
+def test_read_only_connection_can_search_catalog(
+    read_only_connection: HarlequinMySQLConnection,
+) -> None:
+    results = read_only_connection.search_catalog("foo", "relations")
+    assert [(result.item.label, result.parents) for result in results] == [
+        ("foo", ("test_read_only",))
+    ]
 
 
 @pytest.mark.parametrize(
