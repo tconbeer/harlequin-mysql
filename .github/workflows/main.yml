@@ -65,6 +65,9 @@ jobs:
         image: mysql:9
         env:
           MYSQL_ROOT_PASSWORD: example
+          # the catalog tests count the databases on the server, and dev is
+          # one of the five they expect.
+          MYSQL_DATABASE: dev
         ports:
           - 3306:3306
         options: >-
