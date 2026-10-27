@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from typing import Callable, Generator
+from uuid import uuid4
 
 import pytest
 from harlequin.driver import HarlequinDriver
@@ -21,7 +23,7 @@ from harlequin_mysql.interactions import (
     insert_columns_at_cursor,
     show_select_star,
 )
-from harlequin_mysql.quoting import qualified_identifier, quote_identifier
+from harlequin_mysql.quoting import quote_identifier, quote_qualified_identifier
 
 AWKWARD_NAMES = [
     "back`tick",
@@ -35,8 +37,14 @@ AWKWARD_NAMES = [
     "semi;colon",
 ]
 
-DECOY_NAME = "decoy"
-"""A table beside the awkward ones, which no interaction on them may touch."""
+
+def _decoy_name(awkward_name: str) -> str:
+    """The awkward name up to its first special character.
+
+    A statement that left the name unquoted would stop there, so it names the
+    object a mis-quoted interaction would hit.
+    """
+    return re.split(r"[^A-Za-z]", awkward_name, maxsplit=1)[0]
 
 
 class RecordingDriver(HarlequinDriver):
@@ -104,23 +112,39 @@ def awkward_name(request: pytest.FixtureRequest) -> str:
 
 
 @pytest.fixture
-def awkward_database_name(awkward_name: str) -> Generator[str, None, None]:
-    """A database, table, view and column all called the awkward name."""
-    database_name = f"hq1209 {awkward_name}"
+def run_prefix() -> str:
+    """A prefix that keeps this test's databases apart from any other run's."""
+    return f"harlequin_test_{uuid4().hex[:8]}_"
+
+
+@pytest.fixture
+def awkward_database_name(
+    awkward_name: str, run_prefix: str
+) -> Generator[str, None, None]:
+    """A database, table, view and column all called the awkward name.
+
+    Beside each database and table is a decoy named for its decoy name.
+    """
+    database_name = f"{run_prefix}{awkward_name}"
     database = quote_identifier(database_name)
-    table = qualified_identifier(database_name, awkward_name)
-    view = qualified_identifier(database_name, f"{awkward_name} view")
+    decoy_database = quote_identifier(f"{run_prefix}{_decoy_name(awkward_name)}")
+    table = quote_qualified_identifier(database_name, awkward_name)
+    decoy_table = quote_qualified_identifier(database_name, _decoy_name(awkward_name))
+    view = quote_qualified_identifier(database_name, f"{awkward_name} view")
     column = quote_identifier(awkward_name)
     _run_admin_statements(
-        f"drop database if exists {database}",
         f"create database {database}",
+        f"create database {decoy_database}",
         f"create table {table} ({column} varchar(20))",
         f"insert into {table} values ('the right table')",
         f"create view {view} as select {column} from {table}",
-        f"create table {qualified_identifier(database_name, DECOY_NAME)} (a int)",
+        f"create table {decoy_table} (a int)",
     )
     yield database_name
-    _run_admin_statements(f"drop database if exists {database}")
+    _run_admin_statements(
+        f"drop database if exists {database}",
+        f"drop database if exists {decoy_database}",
+    )
 
 
 def _database_item(
@@ -140,7 +164,11 @@ def _relation_items(
         item.label: item
         for item in _database_item(connection, database_name).fetch_children()
     }
-    assert set(relation_items) == {awkward_name, f"{awkward_name} view", DECOY_NAME}
+    assert set(relation_items) == {
+        awkward_name,
+        f"{awkward_name} view",
+        _decoy_name(awkward_name),
+    }
     table_item = relation_items[awkward_name]
     view_item = relation_items[f"{awkward_name} view"]
     assert isinstance(table_item, TableCatalogItem)
@@ -148,7 +176,7 @@ def _relation_items(
     return table_item, view_item
 
 
-def _fetch_text(connection: HarlequinMySQLConnection, query: str) -> list[tuple]:
+def _fetch_rows(connection: HarlequinMySQLConnection, query: str) -> list[tuple]:
     cur = connection.execute(query)
     assert cur is not None
     rows: list[tuple] = cur.fetchall()  # type: ignore[assignment]
@@ -168,7 +196,7 @@ def test_catalog_loads_awkward_names(
         assert column_item.label == awkward_name
         assert column_item.type_name == "varchar(20)"
         # the identifiers the catalog builds name the objects they came from
-        assert _fetch_text(
+        assert _fetch_rows(
             connection,
             f"select {column_item.qualified_identifier} "
             f"from {relation_item.qualified_identifier}",
@@ -197,21 +225,24 @@ def test_use_statement(
 
     execute_use_statement(_database_item(connection, awkward_database_name), driver)
 
-    assert _fetch_text(connection, "select database()") == [(awkward_database_name,)]
+    assert _fetch_rows(connection, "select database()") == [(awkward_database_name,)]
     assert driver.notifications == [
         (f"Editor context switched to {awkward_database_name}", "information")
     ]
 
 
 def test_drop_database(
-    connection: HarlequinMySQLConnection, awkward_database_name: str
+    connection: HarlequinMySQLConnection,
+    awkward_database_name: str,
+    awkward_name: str,
+    run_prefix: str,
 ) -> None:
     execute_drop_database_statement(
         _database_item(connection, awkward_database_name), RecordingDriver()
     )
 
     assert not _object_exists(awkward_database_name)
-    assert _object_exists("test")
+    assert _object_exists(f"{run_prefix}{_decoy_name(awkward_name)}")
 
 
 def test_drop_table(
@@ -222,7 +253,7 @@ def test_drop_table(
     execute_drop_table_statement(table_item, RecordingDriver())
 
     assert not _object_exists(awkward_database_name, awkward_name)
-    assert _object_exists(awkward_database_name, DECOY_NAME)
+    assert _object_exists(awkward_database_name, _decoy_name(awkward_name))
 
 
 def test_drop_view(
@@ -234,6 +265,7 @@ def test_drop_view(
 
     assert not _object_exists(awkward_database_name, f"{awkward_name} view")
     assert _object_exists(awkward_database_name, awkward_name)
+    assert _object_exists(awkward_database_name, _decoy_name(awkward_name))
 
 
 def test_show_select_star(
@@ -245,7 +277,7 @@ def test_show_select_star(
     show_select_star(table_item, driver)
 
     [select_star] = driver.inserted_text
-    assert _fetch_text(connection, select_star) == [("the right table",)]
+    assert _fetch_rows(connection, select_star) == [("the right table",)]
 
 
 def test_insert_columns_at_cursor(
@@ -257,6 +289,6 @@ def test_insert_columns_at_cursor(
     insert_columns_at_cursor(table_item, driver)
 
     [column_list] = driver.inserted_text
-    assert _fetch_text(
+    assert _fetch_rows(
         connection, f"select {column_list} from {table_item.qualified_identifier}"
     ) == [("the right table",)]

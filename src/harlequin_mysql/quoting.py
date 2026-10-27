@@ -12,7 +12,7 @@ def quote_identifier(name: str) -> str:
     return "`" + name.replace("`", "``") + "`"
 
 
-def qualified_identifier(*names: str) -> str:
+def quote_qualified_identifier(*names: str) -> str:
     """Names joined into one dotted identifier, each quoted on its own."""
     return ".".join(quote_identifier(name) for name in names)
 

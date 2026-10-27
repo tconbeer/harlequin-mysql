@@ -40,7 +40,6 @@ from harlequin_mysql.catalog import (
 )
 from harlequin_mysql.cli_options import MYSQLADAPTER_OPTIONS
 from harlequin_mysql.completions import load_completions
-from harlequin_mysql.quoting import quote_literal
 
 USE_DATABASE_PROG = re.compile(r"\s*use\s+\S", flags=re.IGNORECASE)
 QUERY_INTERRUPT_MSG = "1317 (70100): Query execution was interrupted"
@@ -68,7 +67,7 @@ _SEARCH_DATABASES = f"""
 select s.schema_name, null, null, null, null, null
 from information_schema.schemata s
 where s.schema_name not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
-    and lower(s.schema_name) like lower(%s) escape {quote_literal(_LIKE_ESCAPE)}
+    and lower(s.schema_name) like lower(%s) escape %s
 """
 
 _SEARCH_RELATIONS = f"""
@@ -76,7 +75,7 @@ select t.table_schema, t.table_name, t.table_type, null, null, null
 from information_schema.tables t
 where t.table_schema not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
     and t.table_type != 'SYSTEM VIEW'
-    and lower(t.table_name) like lower(%s) escape {quote_literal(_LIKE_ESCAPE)}
+    and lower(t.table_name) like lower(%s) escape %s
 """
 
 _SEARCH_COLUMNS = f"""
@@ -89,8 +88,8 @@ join information_schema.tables t
     and t.table_name = c.table_name
 where c.table_schema not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
     and t.table_type != 'SYSTEM VIEW'
-    and c.extra not like '%%INVISIBLE%%'
-    and lower(c.column_name) like lower(%s) escape {quote_literal(_LIKE_ESCAPE)}
+    and c.extra not like '%INVISIBLE%'
+    and lower(c.column_name) like lower(%s) escape %s
 """
 
 _SEARCH_BRANCHES = {
@@ -107,8 +106,8 @@ every database.
 
 The predicates match what `_get_databases()`, `_get_relations()` and
 `_get_columns()` ask for, so that a search and the catalog tree agree about
-which objects exist. `%` is doubled because these queries are parameterized:
-the connector interpolates the parameters with Python's own %-formatting.
+which objects exist. The connector substitutes only `%s`, so any other `%`
+reaches the server as written.
 """
 
 _SEARCH_SQL = {
@@ -415,8 +414,12 @@ class HarlequinMySQLConnection(HarlequinConnection):
                 msg=POOL_EXHAUSTED_MSG,
             )
         try:
-            # every branch binds the system databases, then the pattern
-            branch_parameters = [*_SYSTEM_DATABASES, _contains_pattern(term)]
+            # every branch binds the system databases, the pattern, then its escape
+            branch_parameters = [
+                *_SYSTEM_DATABASES,
+                _contains_pattern(term),
+                _LIKE_ESCAPE,
+            ]
             cur.execute(
                 _SEARCH_SQL[kind],
                 branch_parameters * len(_SEARCH_BRANCHES[kind]),
@@ -530,7 +533,7 @@ class HarlequinMySQLConnection(HarlequinConnection):
             where
                 table_schema = %s
                 and table_name = %s
-                and extra not like '%%INVISIBLE%%'
+                and extra not like '%INVISIBLE%'
             order by ordinal_position asc
             ;""",
             (db_name, rel_name),

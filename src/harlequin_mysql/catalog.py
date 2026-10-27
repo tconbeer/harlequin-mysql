@@ -13,7 +13,7 @@ from harlequin_mysql.interactions import (
     insert_columns_at_cursor,
     show_select_star,
 )
-from harlequin_mysql.quoting import qualified_identifier, quote_identifier
+from harlequin_mysql.quoting import quote_identifier, quote_qualified_identifier
 
 if TYPE_CHECKING:
     from harlequin_mysql.adapter import HarlequinMySQLConnection
@@ -84,7 +84,7 @@ class ViewCatalogItem(RelationCatalogItem):
         label: str,
         type_name: str,
     ) -> "ViewCatalogItem":
-        relation_qualified_identifier = qualified_identifier(parent.label, label)
+        relation_qualified_identifier = quote_qualified_identifier(parent.label, label)
         return cls(
             qualified_identifier=relation_qualified_identifier,
             query_name=relation_qualified_identifier,
@@ -108,7 +108,7 @@ class TableCatalogItem(RelationCatalogItem):
         label: str,
         type_name: str,
     ) -> "TableCatalogItem":
-        relation_qualified_identifier = qualified_identifier(parent.label, label)
+        relation_qualified_identifier = quote_qualified_identifier(parent.label, label)
         return cls(
             qualified_identifier=relation_qualified_identifier,
             query_name=relation_qualified_identifier,

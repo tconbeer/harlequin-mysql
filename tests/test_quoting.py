@@ -7,9 +7,9 @@ from mysql.connector import connect
 from mysql.connector.abstracts import MySQLConnectionAbstract
 
 from harlequin_mysql.quoting import (
-    qualified_identifier,
     quote_identifier,
     quote_literal,
+    quote_qualified_identifier,
 )
 
 AWKWARD_STRINGS = [
@@ -59,8 +59,8 @@ def test_quote_identifier(name: str, expected: str) -> None:
     assert quote_identifier(name) == expected
 
 
-def test_qualified_identifier() -> None:
-    assert qualified_identifier("a.b", "c`d") == "`a.b`.`c``d`"
+def test_quote_qualified_identifier() -> None:
+    assert quote_qualified_identifier("a.b", "c`d") == "`a.b`.`c``d`"
 
 
 @pytest.mark.parametrize(
