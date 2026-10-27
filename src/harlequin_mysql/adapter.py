@@ -50,8 +50,10 @@ POOL_EXHAUSTED_MSG = (
     "with a larger pool or running fewer queries at once."
 )
 
-_SYSTEM_DATABASES = "'sys', 'information_schema', 'performance_schema', 'mysql'"
-"""The databases the catalog does not show, as a list for an `in` predicate."""
+_SYSTEM_DATABASES = ("sys", "information_schema", "performance_schema", "mysql")
+"""The databases the catalog does not show, bound as the parameters of an `in`."""
+
+_SYSTEM_DATABASES_PLACEHOLDERS = ", ".join(["%s"] * len(_SYSTEM_DATABASES))
 
 _LIKE_ESCAPE = "!"
 """What escapes a LIKE metacharacter in a term the caller typed.
@@ -64,16 +66,16 @@ the server rejects it.
 _SEARCH_DATABASES = f"""
 select s.schema_name, null, null, null, null, null
 from information_schema.schemata s
-where s.schema_name not in ({_SYSTEM_DATABASES})
-    and lower(s.schema_name) like lower(%s) escape '{_LIKE_ESCAPE}'
+where s.schema_name not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
+    and lower(s.schema_name) like lower(%s) escape %s
 """
 
 _SEARCH_RELATIONS = f"""
 select t.table_schema, t.table_name, t.table_type, null, null, null
 from information_schema.tables t
-where t.table_schema not in ({_SYSTEM_DATABASES})
+where t.table_schema not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
     and t.table_type != 'SYSTEM VIEW'
-    and lower(t.table_name) like lower(%s) escape '{_LIKE_ESCAPE}'
+    and lower(t.table_name) like lower(%s) escape %s
 """
 
 _SEARCH_COLUMNS = f"""
@@ -84,10 +86,10 @@ from information_schema.columns c
 join information_schema.tables t
     on t.table_schema = c.table_schema
     and t.table_name = c.table_name
-where c.table_schema not in ({_SYSTEM_DATABASES})
+where c.table_schema not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
     and t.table_type != 'SYSTEM VIEW'
-    and c.extra not like '%%INVISIBLE%%'
-    and lower(c.column_name) like lower(%s) escape '{_LIKE_ESCAPE}'
+    and c.extra not like '%INVISIBLE%'
+    and lower(c.column_name) like lower(%s) escape %s
 """
 
 _SEARCH_BRANCHES = {
@@ -104,8 +106,8 @@ every database.
 
 The predicates match what `_get_databases()`, `_get_relations()` and
 `_get_columns()` ask for, so that a search and the catalog tree agree about
-which objects exist. `%` is doubled because these queries are parameterized:
-the connector interpolates the parameters with Python's own %-formatting.
+which objects exist. The connector substitutes only `%s`, so any other `%`
+reaches the server as written.
 """
 
 _SEARCH_SQL = {
@@ -412,9 +414,15 @@ class HarlequinMySQLConnection(HarlequinConnection):
                 msg=POOL_EXHAUSTED_MSG,
             )
         try:
+            # every branch binds the system databases, the pattern, then its escape
+            branch_parameters = [
+                *_SYSTEM_DATABASES,
+                _contains_pattern(term),
+                _LIKE_ESCAPE,
+            ]
             cur.execute(
                 _SEARCH_SQL[kind],
-                [_contains_pattern(term)] * len(_SEARCH_BRANCHES[kind]),
+                branch_parameters * len(_SEARCH_BRANCHES[kind]),
             )
             # a row is (database, relation, relation_type, column, data_type,
             # column_type), null below the level it names
@@ -478,8 +486,9 @@ class HarlequinMySQLConnection(HarlequinConnection):
         cur.execute(
             f"""
             show databases
-            where `Database` not in ({_SYSTEM_DATABASES})
-            """
+            where `Database` not in ({_SYSTEM_DATABASES_PLACEHOLDERS})
+            """,
+            _SYSTEM_DATABASES,
         )
         results: list[tuple[str]] = cur.fetchall()  # type: ignore
         cur.close()
@@ -494,15 +503,16 @@ class HarlequinMySQLConnection(HarlequinConnection):
                 msg=POOL_EXHAUSTED_MSG,
             )
         cur.execute(
-            f"""
-            select 
-                table_name, 
+            """
+            select
+                table_name,
                 table_type
             from information_schema.tables
-            where table_schema = '{db_name}'
+            where table_schema = %s
             and table_type != 'SYSTEM VIEW'
             order by table_name asc
-            ;"""
+            ;""",
+            (db_name,),
         )
         results: list[tuple[str, str]] = cur.fetchall()  # type: ignore
         cur.close()
@@ -517,15 +527,16 @@ class HarlequinMySQLConnection(HarlequinConnection):
                 msg=POOL_EXHAUSTED_MSG,
             )
         cur.execute(
-            f"""
+            """
             select column_name, data_type, column_type
             from information_schema.columns
             where
-                table_schema = '{db_name}'
-                and table_name = '{rel_name}'
+                table_schema = %s
+                and table_name = %s
                 and extra not like '%INVISIBLE%'
             order by ordinal_position asc
-            ;"""
+            ;""",
+            (db_name, rel_name),
         )
         results: list[tuple[str, str, str]] = cur.fetchall()  # type: ignore
         cur.close()

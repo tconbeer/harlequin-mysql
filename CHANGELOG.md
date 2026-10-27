@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixes the catalog and its actions (Use, Drop, Preview Data, Insert Columns) for databases, tables, and columns whose names contain quotes, backticks, backslashes, or other special characters ([tconbeer/harlequin#1209](https://github.com/tconbeer/harlequin/issues/1209)).
+
 ## [1.4.0] - 2026-08-29
 
 - Adds support for Harlequin's `--read-only` option: every connection runs `set session transaction read only`, so the server refuses DML and DDL ([#46](https://github.com/tconbeer/harlequin-mysql/issues/46)).
