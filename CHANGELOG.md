@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-27
+
 - Fixes the catalog and its actions (Use, Drop, Preview Data, Insert Columns) for databases, tables, and columns whose names contain quotes, backticks, backslashes, or other special characters ([tconbeer/harlequin#1209](https://github.com/tconbeer/harlequin/issues/1209)).
 
 ## [1.4.0] - 2026-08-29
@@ -83,7 +85,8 @@ All notable changes to this project will be documented in this file.
 
 - Adds a basic MySQL adapter with most common connection options.
 
-[unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.4.0...HEAD
+[unreleased]: https://github.com/tconbeer/harlequin-mysql/compare/1.5.0...HEAD
+[1.5.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.4.0...1.5.0
 [1.4.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.1...1.4.0
 [1.3.1]: https://github.com/tconbeer/harlequin-mysql/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/tconbeer/harlequin-mysql/compare/1.2.0...1.3.0
