@@ -31,9 +31,9 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.3.3
         with:
-          version: "0.12.13"
+          version: "0.13.7"
           enable-cache: true
 
       - name: Install python dependencies
@@ -89,9 +89,9 @@ jobs:
           python-version: ${{ matrix.py }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.3.3
         with:
-          version: "0.12.13"
+          version: "0.13.7"
           python-version: ${{ matrix.py }}
           enable-cache: true
 
