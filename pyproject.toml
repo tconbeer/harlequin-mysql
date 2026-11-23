@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "harlequin>=2.11.0,<3",
-    "mysql-connector-python>=9.1.0,<10",
+    "mysql-connector-python>=26.10,<27",
     # temp pin for py 3.14 until duckdb releases a new version with wheels.
     "duckdb>=1.4.2.dev0; python_version >= '3.14'",
 ]
